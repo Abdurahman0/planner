@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Task, TaskStatus } from '@packages/shared';
+import { Task, TaskSource, TaskStatus } from '@packages/shared';
 import { CheckCircle2, Circle, AlertCircle, Clock } from 'lucide-react-native';
 
 interface TaskItemProps {
@@ -38,7 +38,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle }) => {
           <Text style={styles.description}>{task.description}</Text>
         )}
       </View>
-      {task.isAiGenerated && (
+      {task.source === TaskSource.AI && (
         <View style={styles.aiBadge}>
           <Text style={styles.aiBadgeText}>AI</Text>
         </View>

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { User, Goal, Task, SubscriptionPlan, GoalType, TaskStatus, TaskType, AvailabilitySlot, AvailabilityType, Priority, GoalStatus } from '@packages/shared';
+import { User, Goal, Task, SubscriptionPlan, GoalType, TaskStatus, TaskType, AvailabilitySlot, AvailabilityType, GoalPriority, GoalStatus, TaskSource } from '@packages/shared';
 
 interface AppState {
   user: User | null;
@@ -29,7 +29,7 @@ const MOCK_GOALS: Goal[] = [
     userId: 'u1',
     title: 'Learn NestJS & Prisma',
     type: GoalType.AI_MANAGED,
-    priority: Priority.HIGH,
+    priority: GoalPriority.HIGH,
     status: GoalStatus.IN_PROGRESS,
     targetDate: new Date('2026-05-01'),
     projectedDate: new Date('2026-05-05'),
@@ -42,7 +42,7 @@ const MOCK_GOALS: Goal[] = [
     userId: 'u1',
     title: 'Daily Workout',
     type: GoalType.MANUAL,
-    priority: Priority.MEDIUM,
+    priority: GoalPriority.MEDIUM,
     status: GoalStatus.IN_PROGRESS,
     targetDate: new Date('2026-12-31'),
     projectedDate: new Date('2026-12-31'),
@@ -70,7 +70,7 @@ const generateHistoricalTasks = () => {
         status: isDone ? TaskStatus.DONE : (Math.random() > 0.5 ? TaskStatus.FAILED : TaskStatus.TODO),
         type: TaskType.TIME_BASED,
         plannedDate: date,
-        isAiGenerated: Math.random() > 0.5,
+        source: Math.random() > 0.5 ? TaskSource.AI : TaskSource.MANUAL,
         order: j,
       });
     }
@@ -89,7 +89,8 @@ const MOCK_TASKS: Task[] = [
     plannedDate: new Date(),
     startTime: '09:00',
     endTime: '10:30',
-    isAiGenerated: true,
+    estimatedMinutes: 90,
+    source: TaskSource.AI,
     order: 1,
   },
   {
@@ -101,7 +102,8 @@ const MOCK_TASKS: Task[] = [
     plannedDate: new Date(),
     startTime: '11:00',
     endTime: '12:00',
-    isAiGenerated: true,
+    estimatedMinutes: 60,
+    source: TaskSource.AI,
     order: 2,
   },
   {
@@ -113,9 +115,9 @@ const MOCK_TASKS: Task[] = [
     plannedDate: new Date(),
     startTime: '07:00',
     endTime: '08:00',
-    unitTarget: 5,
-    unitName: 'km',
-    isAiGenerated: false,
+    targetValue: 5,
+    targetUnit: 'km',
+    source: TaskSource.MANUAL,
     order: 1,
   },
   {
@@ -125,16 +127,29 @@ const MOCK_TASKS: Task[] = [
     status: TaskStatus.TODO,
     type: TaskType.TIME_BASED,
     plannedDate: new Date(),
-    isAiGenerated: false,
+    source: TaskSource.MANUAL,
     order: 3,
   },
 ];
 
-const MOCK_AVAILABILITY: AvailabilitySlot[] = [
-  { id: 'a1', type: AvailabilityType.SLEEP, startTime: '00:00', endTime: '07:00', daysOfWeek: [0,1,2,3,4,5,6] },
-  { id: 'a2', type: AvailabilityType.WORK, startTime: '09:00', endTime: '17:00', daysOfWeek: [1,2,3,4,5] },
-  { id: 'a3', type: AvailabilityType.SLEEP, startTime: '23:00', endTime: '23:59', daysOfWeek: [0,1,2,3,4,5,6] },
-];
+const buildAvailabilitySlots = (): AvailabilitySlot[] => {
+  const slots: AvailabilitySlot[] = [];
+
+  for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek += 1) {
+    slots.push(
+      { id: `sleep-am-${dayOfWeek}`, userId: 'u1', type: AvailabilityType.SLEEP, startTime: '00:00', endTime: '07:00', dayOfWeek },
+      { id: `sleep-pm-${dayOfWeek}`, userId: 'u1', type: AvailabilityType.SLEEP, startTime: '23:00', endTime: '23:59', dayOfWeek },
+    );
+  }
+
+  for (let dayOfWeek = 1; dayOfWeek <= 5; dayOfWeek += 1) {
+    slots.push({ id: `work-${dayOfWeek}`, userId: 'u1', type: AvailabilityType.WORK, startTime: '09:00', endTime: '17:00', dayOfWeek });
+  }
+
+  return slots;
+};
+
+const MOCK_AVAILABILITY: AvailabilitySlot[] = buildAvailabilitySlots();
 
 export const useStore = create<AppState>((set) => ({
   user: MOCK_USER,

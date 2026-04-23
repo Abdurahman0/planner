@@ -11,6 +11,7 @@ interface DayViewProps {
 
 export const DayView: React.FC<DayViewProps> = ({ selectedDate, tasks, availability = [] }) => {
   const hours = Array.from({ length: 18 }, (_, i) => i + 6); // 06:00 to 23:00
+  const selectedDayOfWeek = selectedDate.getDay();
 
   const dayTasks = tasks.filter(
     (t) => new Date(t.plannedDate).toDateString() === selectedDate.toDateString()
@@ -27,7 +28,7 @@ export const DayView: React.FC<DayViewProps> = ({ selectedDate, tasks, availabil
       const slot = availability.find(s => {
         const startHour = parseInt(s.startTime.split(':')[0]);
         const endHour = parseInt(s.endTime.split(':')[0]);
-        return hour >= startHour && hour < endHour;
+        return s.dayOfWeek === selectedDayOfWeek && hour >= startHour && hour < endHour;
       });
 
       // Find tasks starting at this hour

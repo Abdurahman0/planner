@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
-import { GoalType, Priority, GoalStatus, SubscriptionPlan, Goal } from '@packages/shared';
+import { GoalType, GoalPriority, GoalStatus, SubscriptionPlan, Goal } from '@packages/shared';
 import { ChevronLeft, Calendar as CalendarIcon, Brain, Target, Info, AlertCircle } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useForm, Controller } from 'react-hook-form';
@@ -13,7 +13,7 @@ const schema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
   description: z.string().optional(),
   targetDate: z.date().min(new Date(), 'Target date must be in the future'),
-  priority: z.nativeEnum(Priority),
+  priority: z.nativeEnum(GoalPriority),
   type: z.nativeEnum(GoalType),
   // AI specific fields
   availableTime: z.string().optional(),
@@ -38,7 +38,7 @@ export default function CreateGoalScreen() {
       title: '',
       description: '',
       targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 1 week from now
-      priority: Priority.MEDIUM,
+      priority: GoalPriority.MEDIUM,
       type: GoalType.MANUAL,
       availableTime: '1-2 hours',
       difficulty: 'Moderate',
@@ -206,13 +206,13 @@ export default function CreateGoalScreen() {
             <View style={[styles.section, { flex: 1 }]}>
               <Text style={styles.sectionLabel}>Priority</Text>
               <View style={styles.prioritySelector}>
-                {Object.values(Priority).map((p) => (
+                {Object.values(GoalPriority).map((p) => (
                   <TouchableOpacity
                     key={p}
                     style={[
                       styles.priorityOption,
                       watch('priority') === p && styles.priorityOptionActive,
-                      watch('priority') === p && { backgroundColor: p === Priority.HIGH ? '#EF4444' : p === Priority.MEDIUM ? '#F59E0B' : '#10B981' }
+                      watch('priority') === p && { backgroundColor: p === GoalPriority.HIGH ? '#EF4444' : p === GoalPriority.MEDIUM ? '#F59E0B' : '#10B981' }
                     ]}
                     onPress={() => setValue('priority', p)}
                   >

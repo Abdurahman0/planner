@@ -12,24 +12,31 @@ export function calculateProjectedDate(
   tasks: Task[]
 ): Date {
   const now = new Date();
-  const overdueTasks = tasks.filter(
-    (t) => t.status === TaskStatus.TODO && t.plannedDate < now
+  const incompleteOverdueTasks = tasks.filter(
+    (task) =>
+      [TaskStatus.TODO, TaskStatus.PARTIAL, TaskStatus.FAILED].includes(task.status) &&
+      task.plannedDate < now
   );
 
-  if (overdueTasks.length === 0) {
+  if (incompleteOverdueTasks.length === 0) {
     return originalTargetDate;
   }
 
-  // Simple heuristic: each overdue task adds its estimated time (or a default day) to the projection
-  let totalDelayDays = 0;
-  overdueTasks.forEach((task) => {
-    // If we have time estimates, we could be more precise.
-    // For now, let's assume each overdue task pushes the timeline by 1 day if it's a daily task.
-    totalDelayDays += 1;
-  });
+  const totalDelayDays = incompleteOverdueTasks.reduce((delayDays, task) => {
+    if (task.status === TaskStatus.PARTIAL && task.targetValue && task.completedValue) {
+      const remainingRatio = Math.max(0, (task.targetValue - task.completedValue) / task.targetValue);
+      return delayDays + Math.max(0.25, remainingRatio);
+    }
+
+    if (task.estimatedMinutes) {
+      return delayDays + Math.max(0.25, task.estimatedMinutes / 60 / 2);
+    }
+
+    return delayDays + 1;
+  }, 0);
 
   const projectedDate = new Date(originalTargetDate);
-  projectedDate.setDate(projectedDate.getDate() + totalDelayDays);
+  projectedDate.setDate(projectedDate.getDate() + Math.ceil(totalDelayDays));
 
   return projectedDate;
 }

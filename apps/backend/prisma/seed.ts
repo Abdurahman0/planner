@@ -1,5 +1,14 @@
 import { PrismaClient } from '@prisma/client';
-import { SubscriptionPlan, GoalType, TaskStatus, TaskType } from '@packages/shared';
+import {
+  AvailabilityType,
+  GoalPriority,
+  GoalStatus,
+  GoalType,
+  SubscriptionPlan,
+  TaskSource,
+  TaskStatus,
+  TaskType,
+} from '../../../packages/shared/src/index.ts';
 
 const prisma = new PrismaClient();
 
@@ -19,8 +28,18 @@ async function main() {
       userId: user.id,
       title: 'Master Full-Stack Development',
       type: GoalType.AI_MANAGED,
+      priority: GoalPriority.HIGH,
+      status: GoalStatus.IN_PROGRESS,
       targetDate: new Date('2026-10-01'),
       projectedDate: new Date('2026-10-01'),
+    },
+  });
+
+  const plan = await prisma.plan.create({
+    data: {
+      goalId: goal.id,
+      version: 1,
+      isCurrent: true,
     },
   });
 
@@ -28,21 +47,48 @@ async function main() {
     data: [
       {
         goalId: goal.id,
+        planId: plan.id,
         title: 'Learn React Native Basics',
         status: TaskStatus.DONE,
         type: TaskType.TIME_BASED,
         plannedDate: new Date(),
-        isAiGenerated: true,
+        startTime: '09:00',
+        endTime: '10:30',
+        estimatedMinutes: 90,
+        source: TaskSource.AI,
         order: 1,
       },
       {
         goalId: goal.id,
+        planId: plan.id,
         title: 'Build a NestJS API',
         status: TaskStatus.TODO,
         type: TaskType.TIME_BASED,
         plannedDate: new Date(),
-        isAiGenerated: true,
+        startTime: '11:00',
+        endTime: '12:00',
+        estimatedMinutes: 60,
+        source: TaskSource.AI,
         order: 2,
+      },
+    ],
+  });
+
+  await prisma.availabilitySlot.createMany({
+    data: [
+      {
+        userId: user.id,
+        dayOfWeek: 1,
+        startTime: '09:00',
+        endTime: '17:00',
+        type: AvailabilityType.WORK,
+      },
+      {
+        userId: user.id,
+        dayOfWeek: 2,
+        startTime: '09:00',
+        endTime: '17:00',
+        type: AvailabilityType.WORK,
       },
     ],
   });

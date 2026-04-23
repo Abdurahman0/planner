@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Task, Goal } from '@packages/shared';
+import { Task, Goal, TaskSource } from '@packages/shared';
 
 interface MonthViewProps {
   selectedDate: Date;
@@ -39,7 +39,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
     const isSelected = selectedDate.toDateString() === date.toDateString();
     
     const dayTasks = tasks.filter(t => new Date(t.plannedDate).toDateString() === date.toDateString());
-    const hasAiTasks = dayTasks.some(t => t.isAiGenerated);
+    const hasAiTasks = dayTasks.some(t => t.source === TaskSource.AI);
 
     return (
       <TouchableOpacity

@@ -7,140 +7,284 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SubscriptionPlan {
+  free
+  ai_basic
+  ai_pro
+}
+
+enum SubscriptionStatus {
+  active
+  cancelled
+  expired
+}
+
+enum GoalType {
+  manual
+  ai_managed
+}
+
+enum GoalStatus {
+  in_progress
+  completed
+  failed
+  archived
+}
+
+enum GoalPriority {
+  low
+  medium
+  high
+}
+
+enum TaskStatus {
+  todo
+  done
+  partial
+  failed
+}
+
+enum TaskType {
+  time_based
+  unit_based
+}
+
+enum TaskSource {
+  manual
+  ai
+}
+
+enum AvailabilityType {
+  sleep
+  work
+  unavailable
+  available
+}
+
+enum AiActionType {
+  initial_plan
+  replan
+}
+
+enum NotificationType {
+  reminder
+  goal_update
+  system
+}
+
+enum NotificationStatus {
+  unread
+  read
+  archived
+}
+
 model User {
-  id               String           @id @default(uuid())
-  email            String           @unique
-  passwordHash     String
-  subscriptionPlan String           @default("free") // free, ai_basic, ai_pro
-  goals            Goal[]
-  devices          UserDevice[]
-  subscriptions    Subscription[]
-  referrals        Referral[]
-  auditLogs        AdminAuditLog[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                String             @id @default(uuid())
+  email             String             @unique
+  passwordHash      String
+  subscriptionPlan  SubscriptionPlan   @default(free)
+  goals             Goal[]
+  devices           UserDevice[]
+  subscriptions     Subscription[]
+  availabilitySlots AvailabilitySlot[]
+  taskProgressLogs  TaskProgressLog[]
+  aiUsageLogs       AiUsageLog[]
+  notifications     Notification[]
+  referrals         Referral[]
+  auditLogs         AdminAuditLog[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model UserDevice {
   id        String   @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
-  platform  String // ios, android
+  platform  String
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Subscription {
-  id            String    @id @default(uuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  planType      String
-  status        String // active, cancelled, expired
-  paymentId     String?
-  startDate     DateTime  @default(now())
-  endDate       DateTime?
-  createdAt     DateTime  @default(now())
+  id        String             @id @default(uuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planType  SubscriptionPlan
+  status    SubscriptionStatus @default(active)
+  paymentId String?
+  startDate DateTime           @default(now())
+  endDate   DateTime?
+  createdAt DateTime           @default(now())
+
+  @@index([userId])
 }
 
 model Goal {
-  id            String    @id @default(uuid())
+  id            String       @id @default(uuid())
   userId        String
-  user          User      @relation(fields: [userId], references: [id])
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   title         String
   description   String?
-  type          String // manual, ai_managed
+  type          GoalType
+  priority      GoalPriority @default(medium)
+  status        GoalStatus   @default(in_progress)
   targetDate    DateTime
   projectedDate DateTime
-  isCompleted   Boolean   @default(false)
+  isCompleted   Boolean      @default(false)
   plans         Plan[]
   tasks         Task[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  aiUsageLogs   AiUsageLog[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([userId, type, status])
 }
 
 model Plan {
-  id          String      @id @default(uuid())
-  goalId      String
-  goal        Goal        @relation(fields: [goalId], references: [id])
-  version     Int         @default(1)
-  isCurrent   Boolean     @default(true)
-  milestones  Milestone[]
-  createdAt   DateTime    @default(now())
+  id         String      @id @default(uuid())
+  goalId     String
+  goal       Goal        @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  version    Int         @default(1)
+  isCurrent  Boolean     @default(true)
+  milestones Milestone[]
+  tasks      Task[]
+  createdAt  DateTime    @default(now())
+
+  @@unique([goalId, version])
+  @@index([goalId, isCurrent])
 }
 
 model Milestone {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   planId      String
-  plan        Plan     @relation(fields: [planId], references: [id])
+  plan        Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
   title       String
   description String?
   order       Int
+  targetDate  DateTime?
+  tasks       Task[]
+
+  @@index([planId])
 }
 
 model Task {
-  id                  String            @id @default(uuid())
-  goalId              String
-  goal                Goal              @relation(fields: [goalId], references: [id])
-  title               String
-  description         String?
-  status              String            @default("todo") // todo, done, partial, failed
-  type                String            @default("time_based") // time_based, unit_based
-  plannedDate         DateTime
-  completedDate       DateTime?
-  timeEstimateMinutes Int?
-  unitTarget          Float?
-  unitCompleted       Float?
-  unitName            String?
-  isAiGenerated       Boolean           @default(false)
-  order               Int
-  progressLogs        TaskProgressLog[]
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  id               String            @id @default(uuid())
+  goalId           String
+  goal             Goal              @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  planId           String?
+  plan             Plan?             @relation(fields: [planId], references: [id], onDelete: SetNull)
+  milestoneId      String?
+  milestone        Milestone?        @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  title            String
+  description      String?
+  status           TaskStatus        @default(todo)
+  type             TaskType          @default(time_based)
+  plannedDate      DateTime
+  startTime        String?
+  endTime          String?
+  completedDate    DateTime?
+  estimatedMinutes Int?
+  targetValue      Float?
+  completedValue   Float?
+  targetUnit       String?
+  source           TaskSource        @default(manual)
+  order            Int               @default(0)
+  progressLogs     TaskProgressLog[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([goalId])
+  @@index([planId])
+  @@index([milestoneId])
+  @@index([plannedDate])
 }
 
 model TaskProgressLog {
-  id            String   @id @default(uuid())
-  taskId        String
-  task          Task     @relation(fields: [taskId], references: [id])
-  status        String
-  unitCompleted Float?
-  notes         String?
-  createdAt     DateTime @default(now())
+  id                String     @id @default(uuid())
+  userId            String
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId            String
+  task              Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  status            TaskStatus
+  completionPercent Float?
+  completedValue    Float?
+  note              String?
+  loggedAt          DateTime   @default(now())
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([loggedAt])
+}
+
+model AvailabilitySlot {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  type      AvailabilityType
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId, dayOfWeek])
 }
 
 model AiUsageLog {
-  id        String   @id @default(uuid())
-  userId    String
-  goalId    String?
-  action    String // initial_plan, replan
-  tokens    Int?
-  createdAt DateTime @default(now())
+  id            String       @id @default(uuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId        String?
+  goal          Goal?        @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  actionType    AiActionType
+  model         String?
+  inputTokens   Int?
+  outputTokens  Int?
+  estimatedCost Decimal?
+  success       Boolean      @default(true)
+  errorMessage  String?
+  createdAt     DateTime     @default(now())
+
+  @@index([userId])
+  @@index([goalId])
+  @@index([actionType])
 }
 
 model Referral {
   id         String   @id @default(uuid())
   referrerId String
-  referrer   User     @relation(fields: [referrerId], references: [id])
+  referrer   User     @relation(fields: [referrerId], references: [id], onDelete: Cascade)
   referredId String   @unique
-  status     String // pending, completed
+  status     String
   createdAt  DateTime @default(now())
+
+  @@index([referrerId])
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String             @id @default(uuid())
   userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   body      String
-  type      String // reminder, goal_update, system
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  type      NotificationType
+  status    NotificationStatus @default(unread)
+  createdAt DateTime           @default(now())
+
+  @@index([userId])
+  @@index([status])
 }
 
 model AdminAuditLog {
   id        String   @id @default(uuid())
   adminId   String
-  admin     User     @relation(fields: [adminId], references: [id])
+  admin     User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
   action    String
   target    String
   createdAt DateTime @default(now())
+
+  @@index([adminId])
 }
