@@ -1,6 +1,6 @@
 import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { AiService } from './ai.service';
-import { AIPlanRequest } from '@packages/shared';
+import type { AIPlanRequest } from '@packages/shared';
 
 @Controller('ai')
 export class AiController {
