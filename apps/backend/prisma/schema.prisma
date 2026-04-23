@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String           @id @default(uuid())
+  email            String           @unique
+  passwordHash     String
+  subscriptionPlan String           @default("free") // free, ai_basic, ai_pro
+  goals            Goal[]
+  devices          UserDevice[]
+  subscriptions    Subscription[]
+  referrals        Referral[]
+  auditLogs        AdminAuditLog[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model UserDevice {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  platform  String // ios, android
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  planType      String
+  status        String // active, cancelled, expired
+  paymentId     String?
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+model Goal {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  title         String
+  description   String?
+  type          String // manual, ai_managed
+  targetDate    DateTime
+  projectedDate DateTime
+  isCompleted   Boolean   @default(false)
+  plans         Plan[]
+  tasks         Task[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Plan {
+  id          String      @id @default(uuid())
+  goalId      String
+  goal        Goal        @relation(fields: [goalId], references: [id])
+  version     Int         @default(1)
+  isCurrent   Boolean     @default(true)
+  milestones  Milestone[]
+  createdAt   DateTime    @default(now())
+}
+
+model Milestone {
+  id          String   @id @default(uuid())
+  planId      String
+  plan        Plan     @relation(fields: [planId], references: [id])
+  title       String
+  description String?
+  order       Int
+}
+
+model Task {
+  id                  String            @id @default(uuid())
+  goalId              String
+  goal                Goal              @relation(fields: [goalId], references: [id])
+  title               String
+  description         String?
+  status              String            @default("todo") // todo, done, partial, failed
+  type                String            @default("time_based") // time_based, unit_based
+  plannedDate         DateTime
+  completedDate       DateTime?
+  timeEstimateMinutes Int?
+  unitTarget          Float?
+  unitCompleted       Float?
+  unitName            String?
+  isAiGenerated       Boolean           @default(false)
+  order               Int
+  progressLogs        TaskProgressLog[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+}
+
+model TaskProgressLog {
+  id            String   @id @default(uuid())
+  taskId        String
+  task          Task     @relation(fields: [taskId], references: [id])
+  status        String
+  unitCompleted Float?
+  notes         String?
+  createdAt     DateTime @default(now())
+}
+
+model AiUsageLog {
+  id        String   @id @default(uuid())
+  userId    String
+  goalId    String?
+  action    String // initial_plan, replan
+  tokens    Int?
+  createdAt DateTime @default(now())
+}
+
+model Referral {
+  id         String   @id @default(uuid())
+  referrerId String
+  referrer   User     @relation(fields: [referrerId], references: [id])
+  referredId String   @unique
+  status     String // pending, completed
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  type      String // reminder, goal_update, system
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AdminAuditLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
+  action    String
+  target    String
+  createdAt DateTime @default(now())
+}
