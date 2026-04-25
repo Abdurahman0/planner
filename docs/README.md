@@ -1,45 +1,144 @@
-# AI Planner Documentation
-
-This folder is the project source of truth for product direction, architecture, development rules, and implementation priorities.
+# AI Planner Docs
 
 ## Project Overview
 
-AI Planner is intended to be a mobile-first planner app for goals, tasks, calendars, analytics, and structured AI-assisted planning.
+AI Planner is a planner product with:
 
-Current codebase state:
+- manual goals and tasks
+- premium AI-managed goals with strict limits
+- future planner scheduling logic
+- future analytics and AI plan generation/replan flows
 
-- Visual mobile app preview exists through Vite, React Native Web, Expo-style routes, and mock navigation.
-- Mobile screens exist for dashboard, goals, create goal, calendar, progress, and profile.
-- State is currently local and mock-only through Zustand.
-- Backend is a thin NestJS and Prisma scaffold, not a usable API application yet.
-- AI, payments, auth, notifications, and production persistence are not implemented.
+Current maturity:
 
-## What This App Is
+- backend foundation exists
+- auth is real
+- goals API is real
+- tasks API is real
+- TaskProgressLog writes are real
+- deadline movement is real
+- AI planning endpoints are real
+- payment backend is real
+- frontend is connected for auth/goals/tasks
+- notifications are not implemented yet
 
-- A planner and goal execution product in progress.
-- A future React Native + Expo mobile app backed by NestJS, Prisma, and PostgreSQL.
-- A product where AI should generate structured plans and explicit replans only.
-- A product where app and backend logic, not AI, should track completion, schedule work, and move projected deadlines.
+## Current Real State
 
-## What This App Is Not
+Implemented:
 
-- Not production-ready.
-- Not a real persisted mobile app yet.
-- Not a chat assistant.
-- Not connected to a real backend from the frontend.
-- Not connected to a real AI provider in app behavior.
-- Not connected to real payments or push notifications.
+- Prisma schema alignment
+- database migration
+- database seed
+- NestJS bootstrap
+- `GET /health`
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /users/me`
+- JWT-protected Goals API
+- JWT-protected Tasks API
+- TaskProgressLog writes on `PATCH /tasks/:id/status`
+- projected deadline movement logic
+- `POST /ai/generate-plan`
+- `POST /ai/replan`
+- `POST /payments/initiate`
+- `POST /payments/webhook`
+- frontend auth/goals/tasks integration
 
-## Documentation Map
+Not implemented yet:
 
-- [product.md](./product.md): Product definition, user types, goal rules, and core flows.
-- [architecture.md](./architecture.md): Current and target system architecture.
-- [frontend.md](./frontend.md): Mobile app structure, screens, state, and frontend risks.
-- [backend.md](./backend.md): Backend scaffold status and required backend modules.
-- [database.md](./database.md): Prisma schema, current entities, relationships, and schema gaps.
-- [ai.md](./ai.md): AI boundaries, current placeholder implementation, and future integration shape.
-- [planner-logic.md](./planner-logic.md): Calendar, scheduling, task completion, and deadline projection rules.
-- [pricing.md](./pricing.md): Free vs premium behavior and planned pricing.
-- [roadmap.md](./roadmap.md): Current status and implementation order.
-- [coding-rules.md](./coding-rules.md): Rules for safely extending the project.
+- notifications
+- frontend AI integration
+- frontend payments integration
 
+## Quick Links
+
+- [product.md](./product.md)
+- [architecture.md](./architecture.md)
+- [frontend.md](./frontend.md)
+- [backend.md](./backend.md)
+- [database.md](./database.md)
+- [ai.md](./ai.md)
+- [planner-logic.md](./planner-logic.md)
+- [pricing.md](./pricing.md)
+- [roadmap.md](./roadmap.md)
+- [coding-rules.md](./coding-rules.md)
+
+## Start Backend
+
+Required env vars:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- optional `JWT_EXPIRES_IN`
+- optional `BACKEND_PORT` default `3001`
+- payment and AI env vars are required for those modules
+
+Run:
+
+```bash
+npm run backend:dev
+```
+
+Health check:
+
+```text
+GET http://localhost:3001/health
+```
+
+Expected response:
+
+```json
+{ "status": "ok" }
+```
+
+## Test Auth
+
+Register:
+
+```bash
+curl -X POST http://localhost:3001/auth/register \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"user@example.com\",\"password\":\"StrongPass123\"}"
+```
+
+Login:
+
+```bash
+curl -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"user@example.com\",\"password\":\"StrongPass123\"}"
+```
+
+Current user:
+
+```bash
+curl http://localhost:3001/users/me \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+Create manual goal:
+
+```bash
+curl -X POST http://localhost:3001/goals \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"title\":\"Launch MVP\",\"type\":\"manual\",\"targetDate\":\"2026-06-01T00:00:00.000Z\",\"priority\":\"high\"}"
+```
+
+Create task:
+
+```bash
+curl -X POST http://localhost:3001/tasks \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"goalId\":\"GOAL_UUID\",\"title\":\"Deep Work Block\",\"type\":\"time_based\",\"plannedDate\":\"2026-05-01T00:00:00.000Z\",\"startTime\":\"09:00\",\"endTime\":\"10:30\",\"estimatedMinutes\":90}"
+```
+
+Update task status:
+
+```bash
+curl -X PATCH http://localhost:3001/tasks/TASK_UUID/status \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"status\":\"partial\",\"completionPercent\":40,\"completedValue\":4,\"note\":\"Progress update\"}"
+```

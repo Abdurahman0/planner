@@ -1,93 +1,151 @@
 # Architecture
 
-## Current System Shape
+## System Overview
 
-The repo is organized like a monorepo:
+The project currently has three layers:
 
-- `apps/mobile`: Expo Router style React Native app files and mobile UI components.
-- `apps/backend`: NestJS module scaffold and Prisma schema.
-- `packages/shared`: Shared TypeScript enums, interfaces, and deadline calculation helper.
-- `src`: Root Vite preview app that imports mobile screens and mocks Expo Router behavior.
+- frontend: React Native / Expo-style app rendered today through a Vite preview shell
+- backend: NestJS API
+- database: PostgreSQL via Prisma
 
-The current runnable preview is the root Vite app. It renders a phone-frame web preview through `src/App.tsx`, maps tab routes manually, and aliases `react-native` to `react-native-web` in `vite.config.ts`.
+## Main Components
 
-## Current Data Flow
+### Frontend
 
-Current frontend flow:
+Current frontend stack:
 
-1. Screens read from `apps/mobile/src/store/useStore.ts`.
-2. `useStore` initializes hardcoded mock user, goals, tasks, and availability.
-3. UI actions mutate Zustand memory.
-4. No state is persisted to storage.
-5. No frontend screen calls the backend.
+- `apps/mobile`
+- Expo Router style structure
+- Zustand session/data store
+- planner/dashboard/progress/profile UI
+- web preview shell in `src/App.tsx`
+- backend API client for auth/goals/tasks
 
-Current backend flow:
+Current frontend limitation:
 
-1. `AppModule` imports auth, users, goals, tasks, AI, and subscriptions modules.
-2. `AiController` exposes `POST /ai/generate-plan` and `POST /ai/replan`.
-3. `AiService` returns empty plan output.
-4. `GoalsService` and `TasksService` contain some Prisma logic but have no controllers.
-5. There is no backend `main.ts`, so the NestJS app is not currently bootstrapped as a running server.
+- availability/planner-specific backend APIs do not exist yet
 
-## Target Responsibility Split
+### Backend
 
-### Frontend Responsibilities
+Current backend stack:
 
-- Render mobile planner, dashboard, goals, calendar, analytics, and profile UI.
-- Collect user input with client-side validation for good UX.
-- Call backend APIs through a typed API layer.
-- Cache server state with React Query.
-- Keep local UI-only state local: selected calendar date, active tab, modal visibility.
-- Never enforce premium or AI quota as the only source of truth.
+- NestJS
+- `main.ts` bootstrap
+- CORS enabled
+- global `ValidationPipe`
+- Prisma integration
+- auth module
+- users module
+- goals module
+- tasks module
+- AI module
+- payments module
+- health module
 
-### Backend Responsibilities
+### Database
 
-- Own users, auth, sessions, devices, subscriptions, goals, plans, tasks, progress logs, notifications, and AI usage.
-- Enforce premium limits and AI quotas.
-- Persist plan versions and task changes.
-- Recalculate projected deadlines from progress data.
-- Validate all request DTOs.
-- Expose APIs consumed by mobile.
-- Integrate with payment, notification, and AI providers.
+Current database stack:
 
-### Shared Package Responsibilities
+- PostgreSQL
+- Prisma schema aligned with shared domain model
+- migration executed
+- seed executed successfully
 
-- Define stable domain enums and interfaces shared by frontend and backend.
-- Hold deterministic business logic that must match across clients and server.
-- Keep AI provider code out of shared package.
+## Data Flow
 
-Current warning: shared types and Prisma schema already diverge. For example, frontend `Task` supports `startTime` and `endTime`, but Prisma `Task` does not.
+Current implemented backend flow:
 
-## AI Boundary
+```text
+client -> NestJS API -> Prisma -> PostgreSQL
+```
 
-AI must be isolated to:
+Current implemented frontend flow:
 
-- Initial plan generation.
-- Explicit manual replanning.
+```text
+mobile/web client -> auth/token store -> authenticated fetch client -> NestJS API -> Prisma -> PostgreSQL
+```
 
-AI must not:
+Current implemented auth flow:
 
-- Act as a chat assistant.
-- Analyze every user action.
-- Own deadline projection.
-- Silently rewrite plans.
-- Replace deterministic app/backend logic.
+```text
+register/login request -> DTO validation -> auth service -> Prisma -> bcrypt -> JWT response
+```
 
-## Major Modules
+Current implemented goals flow:
 
-Current modules:
+```text
+authenticated user -> JWT guard -> goals controller -> goals service -> ownership/subscription checks -> Prisma -> PostgreSQL
+```
 
-- Mobile screens: dashboard, goals, create goal, goal detail, calendar, progress, profile.
-- Mobile components: goal cards, task items, planner header, month/week/day views, chart widgets.
-- Store: single Zustand store with mock data.
-- Backend modules: auth, users, goals, tasks, AI, subscriptions.
-- Database schema: Prisma models for users, goals, plans, tasks, progress logs, subscriptions, notifications, referrals, devices, and audit logs.
+Current implemented tasks flow:
 
-Required modules not yet implemented as usable product flows:
+```text
+authenticated user -> JWT guard -> tasks controller -> tasks service -> goal/task ownership checks -> Prisma -> PostgreSQL
+                                                |
+                                                -> TaskProgressLog write on status updates
+```
 
-- Real auth/session module.
-- Real API controllers for goals, tasks, plans, progress, users, subscriptions, notifications, and devices.
-- Real AI provider adapter.
-- Real payment adapter.
-- Real notification dispatcher.
+Target application flow:
 
+```text
+mobile app -> backend API -> database
+                    |
+                    -> future AI provider for plan generation/replan only
+```
+
+## App Logic vs AI Logic
+
+### App / Backend Logic
+
+Must own:
+
+- users
+- auth
+- goals
+- tasks
+- planner scheduling
+- progress logs
+- deadline projection
+- ownership rules
+- subscription enforcement
+
+### AI Logic
+
+Must only handle:
+
+- initial structured plan generation
+- explicit structured replanning
+
+Must not own:
+
+- auth
+- task completion logic
+- deadline projection logic
+- premium enforcement
+- planner consistency rules
+
+## Current Implementation Status
+
+Implemented:
+
+- database foundation
+- backend bootstrap
+- auth
+- `/health`
+- `/users/me`
+- JWT-protected goals API with ownership checks
+- JWT-protected tasks API with ownership checks
+- TaskProgressLog writes on task status updates
+- frontend auth integration
+- frontend goals integration
+- frontend tasks integration
+- frontend goal detail refetch after task status updates
+- premium AI-goal enforcement in backend
+
+Not implemented yet:
+
+- planner APIs
+- notifications
+- availability API integration
+- frontend AI integration
+- frontend payment integration

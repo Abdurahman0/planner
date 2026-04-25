@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useStore } from '../../src/store/useStore';
 import { CompletionChart } from '../../src/components/charts/CompletionChart';
@@ -8,7 +9,16 @@ import { ActivityTrendChart } from '../../src/components/charts/ActivityTrendCha
 import { StreakWidget } from '../../src/components/charts/StreakWidget';
 
 export default function ProgressScreen() {
-  const { tasks, goals } = useStore();
+  const tasks = useStore((state) => state.tasks);
+  const goals = useStore((state) => state.goals);
+  const notificationSummary = useStore((state) => state.notificationSummary);
+  const fetchGoals = useStore((state) => state.fetchGoals);
+  const fetchTasks = useStore((state) => state.fetchTasks);
+  const fetchNotificationSummary = useStore((state) => state.fetchNotificationSummary);
+
+  useEffect(() => {
+    void Promise.all([fetchGoals(), fetchTasks(), fetchNotificationSummary()]);
+  }, [fetchGoals, fetchNotificationSummary, fetchTasks]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -19,7 +29,10 @@ export default function ProgressScreen() {
         </View>
 
         <View style={styles.content}>
-          <StreakWidget currentStreak={5} bestStreak={12} />
+          <StreakWidget
+            currentStreak={notificationSummary?.currentStreak ?? 0}
+            bestStreak={notificationSummary?.bestStreak ?? 0}
+          />
           
           <CompletionChart tasks={tasks} />
           

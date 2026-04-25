@@ -1,174 +1,146 @@
 # Planner Logic
 
-## Current Planner Status
+## Product Meaning
 
-The app currently has visual planner views:
+The planner is intended to be a scheduling system, not only a task list.
 
-- Month view: `apps/mobile/src/components/MonthView.tsx`
-- Week view: `apps/mobile/src/components/WeekView.tsx`
-- Day view: `apps/mobile/src/components/DayView.tsx`
-- View switcher: `apps/mobile/src/components/PlannerHeader.tsx`
-- Screen wrapper: `apps/mobile/app/(tabs)/calendar.tsx`
+It must eventually support:
 
-These views read tasks and availability from the local Zustand store.
+- month view
+- week view
+- day view with hours
+- scheduled tasks
+- unscheduled tasks
+- user availability
+- progress-aware deadline movement
 
-## Calendar Views
+## Domain Concepts Already Present
 
-### Month View
+Current schema/shared foundation already supports:
 
-Current behavior:
-
-- Renders days in the selected month.
-- Shows a dot when tasks exist on a date.
-- Uses a different dot color if any task for the day is AI-generated.
-- Selecting a date switches to day view.
-
-Limitations:
-
-- Does not show task density beyond simple dots.
-- Does not show overdue state.
-- Does not show goal deadlines.
-- Does not support schedule editing.
-
-### Week View
-
-Current behavior:
-
-- Renders seven day sections.
-- Lists tasks for each day.
-- Shows task status color.
-
-Limitations:
-
-- This is a grouped task list, not a true weekly calendar grid.
-- No hourly positioning.
-- No duration rendering.
-- No rescheduling.
-
-### Day View
-
-Current behavior:
-
-- Renders hourly rows from 06:00 to 23:00.
-- Splits tasks into scheduled and unscheduled.
-- Scheduled tasks are detected by `task.startTime`.
-- Availability blocks are shown from frontend mock availability.
-
-Limitations:
-
-- Only matches tasks by starting hour.
-- Does not render task duration from start to end time.
-- Does not support 00:00 through 05:00 except mock sleep availability is partly invisible.
-- Does not support drag/drop, resize, or edit.
-- Availability has no backend schema.
-- Prisma `Task` does not include `startTime` or `endTime`.
+- task type: `time_based` or `unit_based`
+- scheduled task fields: `startTime`, `endTime`
+- estimated task duration: `estimatedMinutes`
+- unit-based targets: `targetValue`, `targetUnit`
+- completed value tracking
+- availability slots
+- plan and milestone structure
 
 ## Scheduled vs Unscheduled Tasks
 
-Current frontend concept:
+### Scheduled
 
-- Scheduled task: has `startTime`.
-- Unscheduled task: does not have `startTime`.
+Task has:
 
-Required production behavior:
+- `plannedDate`
+- `startTime`
+- optional `endTime`
 
-- Store scheduled start and end time in backend.
-- Support timezone.
-- Allow unscheduled backlog tasks.
-- Allow moving unscheduled tasks into calendar slots.
-- Prevent or warn on conflicts with unavailable blocks.
+### Unscheduled
+
+Task has:
+
+- `plannedDate`
+- no time slot assigned yet
 
 ## Task Types
 
-Current shared task types:
+### Time-Based Tasks
 
-- `time_based`
-- `unit_based`
+Use:
 
-Current task fields:
+- `estimatedMinutes`
+- optional scheduled time range
 
-- Time estimate: `timeEstimateMinutes`
-- Unit target: `unitTarget`
-- Unit completed: `unitCompleted`
-- Unit name: `unitName`
+### Unit-Based Tasks
 
-Current limitations:
+Use:
 
-- UI does not let users enter partial time or unit progress.
-- Backend service only updates status.
-- Progress logs do not capture time spent.
+- `targetValue`
+- `targetUnit`
+- optional `completedValue`
 
-## Deadline Projection Logic
+## Intended Planner Behavior
 
-Intended behavior:
+Eventually the backend should support:
 
-- Target date is the user's desired deadline.
-- Projected date is the app/backend's current estimate based on actual completion behavior.
-- Under-completion should extend projected deadline.
-- Over-completion may shrink projected deadline.
-- Plans remain fixed unless the user explicitly replans.
+- creating tasks under goals
+- assigning tasks to dates
+- assigning optional time slots
+- recording partial and full progress
+- moving projected goal deadline based on real progress
 
-Current implementation:
+## Current Status
 
-- `packages/shared/src/deadlineCalculator.ts` has `calculateProjectedDate(originalTargetDate, tasks)`.
-- It finds overdue `TODO` tasks.
-- It adds one day per overdue task.
-- It returns the original target date when no overdue tasks exist.
+Planner logic is partially implemented in backend flows.
 
-Current weaknesses:
+Current real state:
 
-- Does not consider planned workload size.
-- Does not consider completed ahead of schedule.
-- Does not consider partial progress.
-- Does not consider failed tasks.
-- Does not consider time estimates.
-- Does not consider unit progress.
-- Does not shrink projected deadlines.
-- Uses current time directly, which makes testing harder.
+- schema supports planner-relevant fields
+- frontend has planner UI prototypes
+- backend now exposes task creation/list/get/update/status APIs
+- backend validates task ownership and goal ownership
+- backend writes `TaskProgressLog` on each task status update request
+- backend recalculates `Goal.projectedDate` on each task status update
 
-## Partial Completion
+## Current Implemented Backend Task Behavior
 
-Required behavior:
+- `POST /tasks` creates a task under an owned goal
+- `GET /tasks` lists owned tasks and supports `goalId` filtering
+- `GET /tasks/:id` returns only owned tasks
+- `PATCH /tasks/:id` updates non-status task fields only
+- `PATCH /tasks/:id/status` updates status and writes a progress log
+- `PATCH /tasks/:id/status` also recalculates the parent goal's `projectedDate`
 
-- User can record partial progress for unit-based and time-based tasks.
-- Partial progress should reduce remaining workload.
-- Partial progress should be stored in `TaskProgressLog`.
+Current validation rules:
 
-Current status:
+- `startTime` and `endTime` must be supplied together
+- `endTime` must be later than `startTime`
+- `unit_based` tasks require `targetValue` and `targetUnit`
+- `completedValue` is only accepted on status updates for `unit_based` tasks
 
-- `TaskStatus.PARTIAL` exists in shared types and Prisma string comments.
-- Some UI can display partial status.
-- No UI action records partial completion.
-- No backend API writes partial progress.
+## Still Pending
 
-## Failed Tasks
+- planner-specific scheduling conflict logic
+- calendar/availability APIs
 
-Required behavior:
+## Projected Deadline Logic
 
-- User can mark a task failed.
-- Failed tasks should affect projected deadline and analytics.
-- User should be able to reschedule or replan after repeated failure.
+Current backend logic is deterministic and workload-based.
 
-Current status:
+Inputs:
 
-- `TaskStatus.FAILED` exists.
-- Mock historical tasks can randomly be failed.
-- UI can display failed status.
-- No user action marks a task failed.
-- Deadline projection does not handle failed tasks differently.
+- `Goal.targetDate`
+- all tasks under the goal
+- all `TaskProgressLog` records for those tasks
 
-## Over-Completion
+Workload rules:
 
-Required behavior:
+- `time_based` expected workload = `estimatedMinutes`
+- `unit_based` expected workload = `targetValue`
+- `time_based` completed workload = best logged `completionPercent`
+- `unit_based` completed workload = best logged `completedValue`
+- `done` tasks count as fully completed
 
-- Completing more work than planned should be able to shrink projected deadline.
-- Projection should compare actual throughput against planned workload.
+Schedule rules:
 
-Current status:
+- tasks with `plannedDate` on or before now count as due workload
+- completed workload is compared against due workload
+- behind schedule extends `projectedDate`
+- ahead of schedule shrinks `projectedDate`
+- fully completed workload sets `projectedDate` to the current time
 
-- Not implemented.
+Security rules:
 
-## Planner Verdict
+- `projectedDate` is not client-writeable
+- only backend status/progress flow updates it
+- ownership checks happen before task progress updates are accepted
 
-The planner is a useful visual prototype, but it is not a real production planner yet. The day view is the strongest starting point because it has hourly rows and scheduled/unscheduled separation. The next implementation work should focus on a real scheduling model and task progress model before adding advanced calendar interactions.
+## Important Rule
 
+Planner logic belongs to backend domain logic.
+
+It must not be delegated to:
+
+- frontend local state
+- AI output alone

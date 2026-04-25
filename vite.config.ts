@@ -9,6 +9,10 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss()],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.EXPO_PUBLIC_API_URL': JSON.stringify(env.EXPO_PUBLIC_API_URL ?? env.VITE_API_BASE_URL),
+      'process.env.EXPO_PUBLIC_EXPO_PROJECT_ID': JSON.stringify(env.EXPO_PUBLIC_EXPO_PROJECT_ID ?? env.VITE_EXPO_PROJECT_ID),
+      'process.env.VITE_API_BASE_URL': JSON.stringify(env.VITE_API_BASE_URL),
+      'process.env.VITE_EXPO_PROJECT_ID': JSON.stringify(env.VITE_EXPO_PROJECT_ID),
     },
     resolve: {
       alias: {
@@ -16,6 +20,8 @@ export default defineConfig(({mode}) => {
         'react-native': 'react-native-web',
         'lucide-react-native': 'lucide-react',
         'expo-router': path.resolve(__dirname, './src/mocks/expo-router.ts'),
+        'expo-secure-store': path.resolve(__dirname, './src/mocks/secure-store.ts'),
+        'expo-notifications': path.resolve(__dirname, './src/mocks/expo-notifications.ts'),
         '@react-native-community/datetimepicker': path.resolve(__dirname, './src/mocks/datetimepicker.tsx'),
         '@packages/shared': path.resolve(__dirname, './packages/shared/src'),
       },

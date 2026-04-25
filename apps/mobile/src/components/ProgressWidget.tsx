@@ -1,12 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { motion } from 'motion/react';
+interface ProgressWidgetProps {
+  completionRate: number;
+  currentStreak: number;
+}
 
-export const ProgressWidget: React.FC = () => {
-  // Mock data for now
-  const completionRate = 0.65;
-  const streak = 5;
-
+export const ProgressWidget: React.FC<ProgressWidgetProps> = ({ completionRate, currentStreak }) => {
   return (
     <View style={styles.container}>
       <View style={styles.stat}>
@@ -22,7 +21,7 @@ export const ProgressWidget: React.FC = () => {
       <View style={styles.stat}>
         <Text style={styles.label}>Current Streak</Text>
         <View style={styles.streakContainer}>
-          <Text style={styles.value}>{streak}</Text>
+          <Text style={styles.value}>{currentStreak}</Text>
           <Text style={styles.unit}>days</Text>
         </View>
       </View>

@@ -5,14 +5,32 @@ import CalendarScreen from '../apps/mobile/app/(tabs)/calendar';
 import ProfileScreen from '../apps/mobile/app/(tabs)/profile';
 import ProgressScreen from '../apps/mobile/app/(tabs)/progress';
 import CreateGoalScreen from '../apps/mobile/app/goals/create';
+import GoalDetailsScreen from '../apps/mobile/app/goals/[id]';
+import AuthScreen from '../apps/mobile/app/auth';
 import { useNavigationStore } from './mocks/expo-router';
 import { LayoutDashboard, Target, Calendar, User, BarChart2 } from 'lucide-react';
+import { useAppBootstrap } from '../apps/mobile/src/hooks/useAppBootstrap';
+import { useStore } from '../apps/mobile/src/store/useStore';
 
 export default function App() {
   const { currentPath, navigate } = useNavigationStore();
+  const user = useStore((state) => state.user);
+  const isInitialized = useStore((state) => state.isInitialized);
+
+  useAppBootstrap();
 
   const renderScreen = () => {
+    if (!isInitialized) {
+      return (
+        <div className="flex h-full items-center justify-center bg-black">
+          <span className="text-sm font-medium text-zinc-400">Loading...</span>
+        </div>
+      );
+    }
+
+    if (!user || currentPath === '/auth') return <AuthScreen />;
     if (currentPath === '/goals/create') return <CreateGoalScreen />;
+    if (/^\/goals\/[^/]+$/.test(currentPath)) return <GoalDetailsScreen />;
     
     // Handle tab paths
     if (currentPath.includes('dashboard')) return <Dashboard />;
@@ -29,6 +47,7 @@ export default function App() {
                     currentPath.includes('progress') ? 'progress' :
                     currentPath.includes('calendar') ? 'calendar' :
                     currentPath.includes('profile') ? 'profile' : 'dashboard';
+  const showTabBar = isInitialized && !!user && currentPath.startsWith('/(tabs)/');
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
@@ -53,6 +72,7 @@ export default function App() {
         </div>
 
         {/* Tab Bar */}
+        {showTabBar && (
         <div className="h-[84px] bg-black border-t border-[#222] flex items-center justify-around px-4 pb-6">
           <button 
             onClick={() => navigate('/(tabs)/dashboard')}
@@ -90,6 +110,7 @@ export default function App() {
             <span className="text-[10px] font-medium">Profile</span>
           </button>
         </div>
+        )}
 
         {/* Home Indicator */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/30 rounded-full" />

@@ -19,6 +19,20 @@ enum SubscriptionStatus {
   expired
 }
 
+enum PaymentProvider {
+  click
+  payme
+}
+
+enum PaymentStatus {
+  initiated
+  pending
+  paid
+  cancelled
+  failed
+  expired
+}
+
 enum GoalType {
   manual
   ai_managed
@@ -39,6 +53,7 @@ enum GoalPriority {
 
 enum TaskStatus {
   todo
+  in_progress
   done
   partial
   failed
@@ -68,6 +83,9 @@ enum AiActionType {
 
 enum NotificationType {
   reminder
+  missed_task
+  progress_feedback
+  streak_reward
   goal_update
   system
 }
@@ -89,6 +107,7 @@ model User {
   availabilitySlots AvailabilitySlot[]
   taskProgressLogs  TaskProgressLog[]
   aiUsageLogs       AiUsageLog[]
+  paymentTransactions PaymentTransaction[]
   notifications     Notification[]
   referrals         Referral[]
   auditLogs         AdminAuditLog[]
@@ -119,6 +138,35 @@ model Subscription {
   createdAt DateTime           @default(now())
 
   @@index([userId])
+}
+
+model PaymentTransaction {
+  id                 String          @id @default(uuid())
+  userId             String
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planType           SubscriptionPlan
+  provider           PaymentProvider
+  status             PaymentStatus   @default(initiated)
+  amountMinor        Int
+  currency           String          @default("UZS")
+  localReference     String          @unique
+  externalId         String?
+  providerPayload    Json?
+  errorMessage       String?
+  webhookAttempts    Int             @default(0)
+  initiatedAt        DateTime        @default(now())
+  paidAt             DateTime?
+  processedAt        DateTime?
+  cancelledAt        DateTime?
+  expiresAt          DateTime?
+  lastWebhookAt      DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@unique([provider, externalId])
+  @@index([userId, status])
+  @@index([provider, status])
+  @@index([planType, status])
 }
 
 model Goal {
@@ -271,11 +319,16 @@ model Notification {
   title     String
   body      String
   type      NotificationType
+  dedupeKey String?            @unique
+  metadata  Json?
   status    NotificationStatus @default(unread)
+  readAt    DateTime?
   createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   @@index([userId])
   @@index([status])
+  @@index([userId, createdAt])
 }
 
 model AdminAuditLog {

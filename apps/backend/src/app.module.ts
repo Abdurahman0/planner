@@ -6,6 +6,8 @@ import { AiModule } from './modules/ai/ai.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { HealthModule } from './modules/health/health.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { HealthModule } from './modules/health/health.module';
     GoalsModule,
     TasksModule,
     AiModule,
+    PaymentsModule,
+    NotificationsModule,
     SubscriptionsModule,
   ],
 })

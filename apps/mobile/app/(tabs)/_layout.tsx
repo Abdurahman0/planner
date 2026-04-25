@@ -1,7 +1,24 @@
 import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
+import { useRouter } from 'expo-router';
 import { LayoutDashboard, Target, Calendar, User, BarChart2 } from 'lucide-react-native';
+import { useStore } from '../../src/store/useStore';
 
 export default function TabLayout() {
+  const router = useRouter();
+  const user = useStore((state) => state.user);
+  const isInitialized = useStore((state) => state.isInitialized);
+
+  useEffect(() => {
+    if (isInitialized && !user) {
+      router.replace('/auth');
+    }
+  }, [isInitialized, router, user]);
+
+  if (!isInitialized || !user) {
+    return null;
+  }
+
   return (
     <Tabs
       screenOptions={{

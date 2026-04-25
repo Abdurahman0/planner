@@ -1,23 +1,100 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
-import { TaskStatus, GoalType } from '@packages/shared';
+import { GoalType, TaskStatus, TaskType } from '@packages/shared';
 import { ChevronLeft, Calendar, Target, Brain, Clock } from 'lucide-react-native';
 import { TaskItem } from '../../src/components/TaskItem';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function GoalDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { goals, tasks, updateTaskStatus } = useStore();
+  const goalId = Array.isArray(id) ? id[0] : id;
+  const goals = useStore((state) => state.goals);
+  const tasks = useStore((state) => state.tasks);
+  const isLoading = useStore((state) => state.isLoading);
+  const fetchGoal = useStore((state) => state.fetchGoal);
+  const fetchTasks = useStore((state) => state.fetchTasks);
+  const createTask = useStore((state) => state.createTask);
+  const updateTaskStatus = useStore((state) => state.updateTaskStatus);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskType, setTaskType] = useState<TaskType>(TaskType.TIME_BASED);
+  const [estimatedMinutes, setEstimatedMinutes] = useState('60');
+  const [targetValue, setTargetValue] = useState('1');
+  const [targetUnit, setTargetUnit] = useState('unit');
 
-  const goal = goals.find((g) => g.id === id);
-  const goalTasks = tasks.filter((t) => t.goalId === id);
+  useEffect(() => {
+    if (!goalId) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        await Promise.all([fetchGoal(goalId), fetchTasks(goalId)]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to load goal details';
+        Alert.alert('Load Failed', message);
+      }
+    })();
+  }, [fetchGoal, fetchTasks, goalId]);
+
+  const goal = goals.find((g) => g.id === goalId);
+  const goalTasks = useMemo(() => tasks.filter((task) => task.goalId === goalId), [goalId, tasks]);
 
   if (!goal) return null;
 
   const completedTasks = goalTasks.filter((t) => t.status === TaskStatus.DONE).length;
   const progress = goalTasks.length > 0 ? Math.round((completedTasks / goalTasks.length) * 100) : 0;
+
+  const handleTaskDone = async (taskId: string) => {
+    const task = goalTasks.find((item) => item.id === taskId);
+
+    if (!task) {
+      return;
+    }
+
+    try {
+      await updateTaskStatus(taskId, {
+        status: TaskStatus.DONE,
+        completionPercent: 100,
+        completedValue: task.type === TaskType.UNIT_BASED ? task.targetValue : undefined,
+      });
+      await fetchTasks(goal.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update task';
+      Alert.alert('Update Failed', message);
+    }
+  };
+
+  const handleCreateTask = async () => {
+    if (taskTitle.trim().length < 3) {
+      Alert.alert('Invalid Task', 'Task title must be at least 3 characters.');
+      return;
+    }
+
+    try {
+      await createTask({
+        goalId: goal.id,
+        title: taskTitle.trim(),
+        type: taskType,
+        plannedDate: new Date(),
+        estimatedMinutes: taskType === TaskType.TIME_BASED ? Number(estimatedMinutes) : undefined,
+        targetValue: taskType === TaskType.UNIT_BASED ? Number(targetValue) : undefined,
+        targetUnit: taskType === TaskType.UNIT_BASED ? targetUnit.trim() : undefined,
+      });
+      await fetchTasks(goal.id);
+      setTaskTitle('');
+      setEstimatedMinutes('60');
+      setTargetValue('1');
+      setTargetUnit('unit');
+      setShowTaskForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to create task';
+      Alert.alert('Create Task Failed', message);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -74,7 +151,70 @@ export default function GoalDetailsScreen() {
           </View>
 
           <View style={styles.tasksSection}>
-            <Text style={styles.sectionTitle}>Plan & Tasks</Text>
+            <View style={styles.taskHeaderRow}>
+              <Text style={styles.sectionTitle}>Plan & Tasks</Text>
+              <TouchableOpacity style={styles.addTaskBtn} onPress={() => setShowTaskForm((value) => !value)}>
+                <Text style={styles.addTaskBtnText}>{showTaskForm ? 'Close' : 'Add Task'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {showTaskForm && (
+              <View style={styles.taskForm}>
+                <TextInput
+                  style={styles.taskInput}
+                  placeholder="Task title"
+                  placeholderTextColor="#444"
+                  value={taskTitle}
+                  onChangeText={setTaskTitle}
+                />
+                <View style={styles.taskTypeRow}>
+                  <TouchableOpacity
+                    style={[styles.taskTypeButton, taskType === TaskType.TIME_BASED && styles.taskTypeButtonActive]}
+                    onPress={() => setTaskType(TaskType.TIME_BASED)}
+                  >
+                    <Text style={[styles.taskTypeButtonText, taskType === TaskType.TIME_BASED && styles.taskTypeButtonTextActive]}>Time</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.taskTypeButton, taskType === TaskType.UNIT_BASED && styles.taskTypeButtonActive]}
+                    onPress={() => setTaskType(TaskType.UNIT_BASED)}
+                  >
+                    <Text style={[styles.taskTypeButtonText, taskType === TaskType.UNIT_BASED && styles.taskTypeButtonTextActive]}>Unit</Text>
+                  </TouchableOpacity>
+                </View>
+                {taskType === TaskType.TIME_BASED ? (
+                  <TextInput
+                    style={styles.taskInput}
+                    placeholder="Estimated minutes"
+                    placeholderTextColor="#444"
+                    keyboardType="numeric"
+                    value={estimatedMinutes}
+                    onChangeText={setEstimatedMinutes}
+                  />
+                ) : (
+                  <View style={styles.unitRow}>
+                    <TextInput
+                      style={[styles.taskInput, styles.unitValueInput]}
+                      placeholder="Target value"
+                      placeholderTextColor="#444"
+                      keyboardType="numeric"
+                      value={targetValue}
+                      onChangeText={setTargetValue}
+                    />
+                    <TextInput
+                      style={[styles.taskInput, styles.unitLabelInput]}
+                      placeholder="Unit"
+                      placeholderTextColor="#444"
+                      value={targetUnit}
+                      onChangeText={setTargetUnit}
+                    />
+                  </View>
+                )}
+                <TouchableOpacity style={styles.createTaskBtn} onPress={() => void handleCreateTask()} disabled={isLoading}>
+                  <Text style={styles.createTaskBtnText}>{isLoading ? 'Saving...' : 'Create Task'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {goalTasks.length === 0 ? (
               <Text style={styles.emptyTasks}>No tasks defined for this goal yet.</Text>
             ) : (
@@ -82,7 +222,7 @@ export default function GoalDetailsScreen() {
                 <TaskItem 
                   key={task.id} 
                   task={task} 
-                  onToggle={(id) => updateTaskStatus(id, TaskStatus.DONE)} 
+                  onToggle={() => void handleTaskDone(task.id)} 
                 />
               ))
             )}
@@ -231,11 +371,87 @@ const styles = StyleSheet.create({
   tasksSection: {
     marginBottom: 32,
   },
+  taskHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  addTaskBtn: {
+    backgroundColor: '#A855F722',
+    borderWidth: 1,
+    borderColor: '#A855F744',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  addTaskBtnText: {
+    color: '#A855F7',
+    fontWeight: '600',
+  },
+  taskForm: {
+    backgroundColor: '#111',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#222',
+    padding: 16,
+    gap: 12,
     marginBottom: 20,
+  },
+  taskInput: {
+    backgroundColor: '#000',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#222',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#fff',
+  },
+  taskTypeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  taskTypeButton: {
+    flex: 1,
+    backgroundColor: '#050505',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  taskTypeButtonActive: {
+    backgroundColor: '#A855F7',
+  },
+  taskTypeButtonText: {
+    color: '#666',
+    fontWeight: '600',
+  },
+  taskTypeButtonTextActive: {
+    color: '#fff',
+  },
+  unitRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  unitValueInput: {
+    flex: 1,
+  },
+  unitLabelInput: {
+    flex: 1,
+  },
+  createTaskBtn: {
+    backgroundColor: '#A855F7',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  createTaskBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   emptyTasks: {
     color: '#444',

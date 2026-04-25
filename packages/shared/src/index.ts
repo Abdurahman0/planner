@@ -10,6 +10,20 @@ export enum SubscriptionStatus {
   EXPIRED = 'expired',
 }
 
+export enum PaymentProvider {
+  CLICK = 'click',
+  PAYME = 'payme',
+}
+
+export enum PaymentStatus {
+  INITIATED = 'initiated',
+  PENDING = 'pending',
+  PAID = 'paid',
+  CANCELLED = 'cancelled',
+  FAILED = 'failed',
+  EXPIRED = 'expired',
+}
+
 export enum GoalType {
   MANUAL = 'manual',
   AI_MANAGED = 'ai_managed',
@@ -30,6 +44,7 @@ export enum GoalPriority {
 
 export enum TaskStatus {
   TODO = 'todo',
+  IN_PROGRESS = 'in_progress',
   DONE = 'done',
   PARTIAL = 'partial',
   FAILED = 'failed',
@@ -59,6 +74,9 @@ export enum AiActionType {
 
 export enum NotificationType {
   REMINDER = 'reminder',
+  MISSED_TASK = 'missed_task',
+  PROGRESS_FEEDBACK = 'progress_feedback',
+  STREAK_REWARD = 'streak_reward',
   GOAL_UPDATE = 'goal_update',
   SYSTEM = 'system',
 }
@@ -73,7 +91,7 @@ export interface User {
   id: string;
   email: string;
   subscriptionPlan: SubscriptionPlan;
-  createdAt: Date;
+  createdAt?: Date;
   updatedAt?: Date;
 }
 
@@ -168,6 +186,29 @@ export interface AiUsageLog {
   createdAt: Date;
 }
 
+export interface PaymentTransaction {
+  id: string;
+  userId: string;
+  planType: SubscriptionPlan;
+  provider: PaymentProvider;
+  status: PaymentStatus;
+  amountMinor: number;
+  currency: string;
+  localReference: string;
+  externalId?: string;
+  providerPayload?: unknown;
+  errorMessage?: string;
+  webhookAttempts: number;
+  initiatedAt: Date;
+  paidAt?: Date;
+  processedAt?: Date;
+  cancelledAt?: Date;
+  expiresAt?: Date;
+  lastWebhookAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Notification {
   id: string;
   userId: string;
@@ -175,7 +216,23 @@ export interface Notification {
   body: string;
   type: NotificationType;
   status: NotificationStatus;
+  dedupeKey?: string;
+  metadata?: unknown;
+  readAt?: Date;
   createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface NotificationSummary {
+  currentStreak: number;
+  bestStreak: number;
+  todayCompletionRate: number;
+  todayCompletedTasks: number;
+  todayTotalTasks: number;
+  missedTasksCount: number;
+  behindGoalsCount: number;
+  aheadGoalsCount: number;
+  unreadCount: number;
 }
 
 export interface AIPlanRequest {

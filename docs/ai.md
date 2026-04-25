@@ -1,130 +1,164 @@
-# AI Integration
+# AI
 
-## Product Rule
+## Current Status
 
-AI is allowed only for:
+AI planning is now implemented behind explicit backend endpoints.
 
-- Initial plan generation.
-- Explicit manual replanning.
+Implemented:
 
-AI is not allowed for:
+- `POST /ai/generate-plan`
+- `POST /ai/replan`
+- JWT protection
+- premium-only access
+- daily AI usage limits
+- strict JSON schema enforcement
+- `AiUsageLog` writes
 
-- Chat.
-- Continuous analysis of every user action.
-- Silent plan changes.
-- Deadline projection.
-- Premium enforcement.
-- Task completion decisions.
+Still not implemented:
 
-## Current Implementation
+- frontend AI integration
+- payments-backed entitlement sync
+- AI chat
 
-Current AI-related files:
+## Product Rules
 
-- `packages/shared/src/index.ts`: Defines `AIPlanRequest` and `AIPlanResponse`.
-- `apps/backend/src/modules/ai/ai.controller.ts`: Exposes `POST /ai/generate-plan` and `POST /ai/replan`.
-- `apps/backend/src/modules/ai/ai.service.ts`: Placeholder service.
-- `apps/mobile/app/goals/create.tsx`: Shows AI-managed goal option and AI planning context fields.
-- `apps/mobile/app/goals/[id].tsx`: Shows a replan button for AI-managed goals.
+AI may only be used for:
 
-Current behavior:
+- initial plan generation
+- explicit manual replanning
 
-- No frontend AI call exists.
-- `AiService.generatePlan()` returns `{ tasks: [], milestones: [] }`.
-- `AiService.replan()` returns `{ tasks: [], milestones: [] }`.
-- No provider call exists despite `@google/genai` being installed.
-- No AI output validation exists.
-- No AI usage log write exists.
-- No premium quota is enforced in the AI controller.
+AI must not be used for:
 
-## Current Shared Types
+- chat
+- automatic user coaching in every flow
+- core planner logic
+- auth
+- deadline projection
+- premium enforcement
+- task ownership/security decisions
 
-`AIPlanRequest` currently includes:
+## Implemented Input Shape
 
-- `goalTitle`
-- `description`
+### Generate Plan
+
+`POST /ai/generate-plan`
+
+Input:
+
+- `title`
+- optional `description`
 - `targetDate`
-- `availability`
+- optional `priority`
+- optional `availability[]`
 
-`AIPlanResponse` currently includes:
+Behavior:
 
-- `tasks`
-- `milestones`
+- backend calls Gemini
+- validates JSON response
+- creates a new AI-managed goal
+- creates AI-sourced tasks through `TasksService`
 
-Limitations:
+### Replan
 
-- Availability is a JSON string, not a typed structure.
-- No user timezone.
-- No priority.
-- No difficulty.
-- No task density or preferred workdays.
-- No existing progress for replanning.
-- No schema version.
-- No validation contract for generated task dates, task types, units, or estimates.
+`POST /ai/replan`
 
-## Target Input Shape
+Input:
 
-Future plan generation should send structured data:
+- `goalId`
+- optional `currentProgress` note
 
-- Goal title.
-- Goal description.
-- Goal type.
-- Target date.
-- User timezone.
-- User availability.
-- Desired intensity.
-- Existing commitments.
-- Preferred task type where relevant.
-- Premium plan and quota context from backend.
+Behavior:
 
-Future replan should additionally include:
+- backend loads owned goal and its real task/progress data
+- backend calls Gemini
+- validates JSON response
+- deletes incomplete AI-generated tasks for the goal
+- creates replacement AI tasks through `TasksService`
 
-- Current plan version.
-- Remaining tasks.
-- Completed tasks.
-- Partial and failed tasks.
-- Progress logs.
-- Current projected date.
-- Reason for replan.
+## Output Shape
 
-## Target Output Shape
+AI provider contract:
 
-AI output should be structured JSON only:
+- tasks
+- JSON only
+- no explanations
+- no markdown
+- no extra keys
 
-- Plan summary.
-- Milestones.
-- Tasks with planned dates.
-- Task type: time-based or unit-based.
-- Time estimates or unit targets.
-- Dependencies or ordering if needed.
-- Warnings if target date is unrealistic.
+Task fields:
 
-The backend must validate output before saving it. Invalid output should fail safely and not create partial plans.
+- `title`
+- optional `description`
+- `type`
+- `plannedDate`
+- optional `startTime`
+- optional `endTime`
+- optional `estimatedMinutes`
+- optional `targetValue`
+- optional `targetUnit`
 
-## Cost Control
+No conversational free-form output should be used as the product contract.
 
-Required controls before real AI integration:
+## Usage Logging
 
-- Server-side premium check.
-- Server-side active AI goal count check.
-- AI usage logging.
-- Rate limiting.
-- Token tracking.
-- Provider error handling.
-- Retry policy with limits.
-- No background AI calls for ordinary task completion.
+The schema already includes `AiUsageLog` with fields for:
 
-## What Can Stay
+- user
+- optional goal
+- action type
+- model
+- token counts
+- estimated cost
+- success/failure
+- error message
 
-- The product boundary that AI is explicit and structured.
-- The basic `AIPlanRequest` and `AIPlanResponse` names.
-- The `AiModule`, `AiController`, and `AiService` file locations.
-- The create goal UI concept that collects planning context.
+Current status:
 
-## What Must Be Rewritten
+- schema support exists
+- real `AiUsageLog` writes are implemented
 
-- AI request and response types need production-grade structure.
-- `AiService` must be replaced with a provider adapter and validation pipeline.
-- AI endpoints need auth, quota checks, DTOs, and logging.
-- AI-generated tasks must be persisted through plan version transactions.
-- Replan flow must create a new plan version instead of returning loose task arrays.
+Logged fields:
 
+- `userId`
+- optional `goalId`
+- `actionType`
+- `model`
+- token counts when returned by provider
+- success/failure
+- error message on failure
+
+## Validation Rules
+
+Backend validation is strict:
+
+- AI output must be valid JSON
+- AI output must match backend task schema
+- tasks must be between 3 and 12 items
+- `plannedDate` cannot be in the past
+- `plannedDate` cannot exceed goal `targetDate`
+- `startTime` and `endTime` must be paired
+- `endTime` must be later than `startTime`
+- `time_based` tasks require `estimatedMinutes`
+- `unit_based` tasks require `targetValue` and `targetUnit`
+
+Invalid AI output is rejected and not trusted.
+
+## AI Limits
+
+Current backend limits:
+
+- `free`: no AI access
+- `ai_basic`: 20 AI requests per UTC day
+- `ai_pro`: 100 AI requests per UTC day
+
+## Rule
+
+AI remains constrained behind explicit backend APIs.
+
+AI does not:
+
+- write directly to DB
+- bypass ownership checks
+- bypass subscription checks
+- control deadline logic
+- behave like a chat assistant

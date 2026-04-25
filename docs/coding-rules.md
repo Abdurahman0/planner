@@ -1,81 +1,56 @@
 # Coding Rules
 
-## Core Product Rules
+## Core Rules
 
-- AI is only for initial plan generation and explicit replanning.
-- Do not add AI chat.
-- Do not make AI analyze every user action.
-- Do not silently change a user's plan.
-- Plans stay fixed unless the user explicitly replans.
-- Deadline projection belongs to app/backend logic, not AI.
-- Free users can have unlimited manual goals and manual tasks.
-- Premium limits must be enforced by the backend.
-
-## Architecture Rules
-
-- Keep UI rendering separate from product business logic.
-- Keep server data in API-backed flows, not long-lived mock Zustand state.
-- Use React Query for backend data once APIs exist.
-- Use Zustand only for local UI state if needed.
-- Put deterministic shared logic in `packages/shared` only when both frontend and backend need it.
-- Keep provider-specific AI code in the backend AI module, not shared package and not screens.
-- Keep payment provider code in backend subscriptions/payments modules.
+- backend is the source of truth
+- do not trust frontend state for business decisions
+- no business logic in UI
+- no direct DB access from frontend
+- always enforce ownership and security in backend
+- AI must not handle core logic
 
 ## Backend Rules
 
-- Every mutating endpoint must require authenticated user context.
-- Every user-owned resource must check ownership.
-- Every request body must have DTO validation.
-- Do not trust frontend premium checks.
-- Do not use `any` for production request bodies.
-- Use transactions when creating goals, plans, milestones, tasks, and AI usage logs together.
-- Write progress logs for task completion, partial completion, and failure.
-- Recalculate projected deadlines on the backend after progress changes.
-- Log AI usage and provider failures.
+- all user-owned endpoints must require authentication
+- all user-owned resources must enforce ownership checks
+- prefer `404` for non-owned resources where practical
+- use DTO validation on request input
+- never expose `passwordHash`
+- never trust client-provided premium flags
+- never trust client `userId` for owned resources
+- premium and quota enforcement must happen in backend
+- planner and deadline logic must live in backend domain logic
 
 ## Frontend Rules
 
-- Do not add new production features backed only by mock data.
-- Do not put backend business rules only in screens.
-- Do not use `Math.random()` IDs for persisted entities.
-- All backend calls should go through a typed API layer.
-- Screens should handle loading, empty, error, and disabled states.
-- Task UI must support done, partial, failed, and unit/time progress before production.
-- Calendar UI must distinguish scheduled and unscheduled tasks.
-
-## Database Rules
-
-- Prefer Prisma enums for stable domain statuses and types.
-- Do not store important status values as unchecked strings.
-- Keep shared TypeScript types and Prisma schema aligned.
-- Add relations for entities that are queried together.
-- Preserve plan history. Do not overwrite old AI plans when replanning.
-- Track provider IDs and webhook events for subscriptions.
-- Track device state for notifications.
+- frontend should consume APIs, not act as source of truth
+- mock Zustand data is temporary and must not define final business behavior
+- no premium enforcement only in frontend
+- no AI logic embedded in UI screens
 
 ## AI Rules
 
-- AI output must be structured JSON.
-- AI output must be validated before persistence.
-- AI calls must be explicit user actions.
-- AI calls must be quota-limited.
-- AI calls must be logged.
-- AI should return plans and tasks, not conversational advice.
-- Replanning should create a new plan version.
+- AI only generates or replans structured plans
+- AI is not chat
+- AI must not decide auth, ownership, pricing, or deadline truth
+- AI output must be validated before persistence
+
+## Database Rules
+
+- Prisma schema and shared types must stay aligned
+- do not add stringly-typed business fields when enums are appropriate
+- relations must reflect real ownership and planner flows
+
+## Security Rules
+
+- hash passwords
+- sign JWTs with env-based secret
+- keep secrets out of code
+- avoid user enumeration in auth flows
+- expose only safe response fields
 
 ## Documentation Rules
 
-- Update `/docs` when product behavior, architecture, schema, or implementation order changes.
-- Label features as current, mock/local, placeholder, or planned.
-- Do not claim real auth, payment, AI, notification, or persistence behavior until code proves it.
-- Keep docs implementation-oriented.
-
-## What Not To Do
-
-- Do not build a chat assistant.
-- Do not wire frontend screens directly to insecure backend services.
-- Do not ship frontend-only premium gating.
-- Do not add more visual-only features before persistence and progress flows are real.
-- Do not rewrite the entire UI before stabilizing backend contracts.
-- Do not let AI own deterministic planner logic.
-
+- `/docs` must stay aligned with real implementation state
+- implemented vs planned must always be explicit
+- do not document placeholder code as working product behavior

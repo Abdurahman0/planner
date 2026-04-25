@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
-import { GoalType, GoalPriority, GoalStatus, SubscriptionPlan, Goal } from '@packages/shared';
+import { GoalType, GoalPriority, SubscriptionPlan } from '@packages/shared';
 import { ChevronLeft, Calendar as CalendarIcon, Brain, Target, Info, AlertCircle } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useForm, Controller } from 'react-hook-form';
@@ -25,7 +25,10 @@ type FormData = z.infer<typeof schema>;
 
 export default function CreateGoalScreen() {
   const router = useRouter();
-  const { user, goals, addGoal } = useStore();
+  const user = useStore((state) => state.user);
+  const goals = useStore((state) => state.goals);
+  const createGoal = useStore((state) => state.createGoal);
+  const isLoading = useStore((state) => state.isLoading);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const isPremium = user?.subscriptionPlan !== SubscriptionPlan.FREE;
@@ -48,7 +51,7 @@ export default function CreateGoalScreen() {
 
   const selectedType = watch('type');
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     if (data.type === GoalType.AI_MANAGED && !canCreateAiGoal) {
       if (!isPremium) {
         Alert.alert('Premium Feature', 'AI-managed goals are only available for premium users.');
@@ -58,23 +61,19 @@ export default function CreateGoalScreen() {
       return;
     }
 
-    const newGoal: Goal = {
-      id: Math.random().toString(36).substring(7),
-      userId: user?.id || 'u1',
-      title: data.title,
-      description: data.description,
-      type: data.type,
-      priority: data.priority,
-      status: GoalStatus.IN_PROGRESS,
-      targetDate: data.targetDate,
-      projectedDate: data.targetDate, // Initially same as target
-      isCompleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    addGoal(newGoal);
-    router.replace('/(tabs)/goals');
+    try {
+      await createGoal({
+        title: data.title,
+        description: data.description,
+        type: data.type,
+        targetDate: data.targetDate,
+        priority: data.priority,
+      });
+      router.replace('/(tabs)/goals');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to create goal';
+      Alert.alert('Create Goal Failed', message);
+    }
   };
 
   return (
@@ -283,11 +282,12 @@ export default function CreateGoalScreen() {
           )}
 
           <TouchableOpacity 
-            style={styles.submitBtn} 
+            style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]} 
             onPress={handleSubmit(onSubmit)}
+            disabled={isLoading}
           >
             <Text style={styles.submitBtnText}>
-              {selectedType === GoalType.AI_MANAGED ? 'Generate AI Plan' : 'Create Manual Goal'}
+              {isLoading ? 'Saving...' : selectedType === GoalType.AI_MANAGED ? 'Generate AI Plan' : 'Create Manual Goal'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -503,6 +503,9 @@ const styles = StyleSheet.create({
     padding: 18,
     alignItems: 'center',
     marginTop: 12,
+  },
+  submitBtnDisabled: {
+    opacity: 0.7,
   },
   submitBtnText: {
     color: '#fff',

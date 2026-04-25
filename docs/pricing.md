@@ -1,74 +1,64 @@
 # Pricing
 
-## Product Pricing Model
+## Product Rules
 
-Intended product behavior:
+### Free Users
 
-- Free users can create unlimited manual goals.
-- Free users can create unlimited manual tasks.
-- Premium users can create AI-managed goals.
-- Premium users are limited to 3 active AI-managed goals for the planned first premium tier.
-- AI is used only for initial plan generation and explicit replanning.
+- unlimited manual goals
+- unlimited manual tasks
+- no AI-managed goals
 
-## Planned Tiers
+### Premium Users
 
-Planned pricing concepts:
+- unlimited manual goals
+- unlimited manual tasks
+- up to 3 AI-managed goals
+- access to AI generation and explicit replan features
 
-- Free: manual planning, tasks, calendar, basic progress.
-- Premium 49k: AI-managed goals up to the product limit, AI plan generation, explicit replanning.
-- Premium 79k: possible higher tier for expanded limits, deeper analytics, or advanced scheduling later.
+## Current Status
 
-These prices are planned product direction, not implemented billing behavior.
+Pricing enforcement now has real backend payment support.
 
-## Current Implementation
+Current real state:
 
-Frontend:
+- subscription plan exists on `User`
+- subscription models exist in schema
+- `PaymentTransaction` now exists in schema
+- auth returns `subscriptionPlan`
+- backend goals API enforces free vs premium AI-goal creation rules
+- `POST /payments/initiate` creates pending payment transactions
+- `POST /payments/webhook` verifies provider callbacks and upgrades subscriptions
+- frontend upgrade screen is not implemented yet
 
-- Mock user is `AI_BASIC` in `apps/mobile/src/store/useStore.ts`.
-- Create goal screen treats any non-free user as premium.
-- Create goal screen blocks AI-managed goal creation if there are already 3 AI-managed goals.
-- Profile screen shows a premium badge based on mock user state.
-- Upgrade card appears only if the mock user is free.
+## What Exists Today
 
-Backend:
+- schema support for `Subscription`
+- schema support for `SubscriptionPlan`
+- schema support for `PaymentTransaction`
+- safe auth response includes `subscriptionPlan`
+- backend AI-goal restriction logic in goals API
+- backend AI usage checks now sit on top of real subscription upgrades
+- backend payment providers:
+  - Click
+  - Payme
 
-- Prisma has `Subscription`.
-- Prisma `User.subscriptionPlan` defaults to `free`.
-- `SubscriptionsModule` is empty.
-- `GoalsService` has partial AI goal limit logic.
+## Current Paid Plans
 
-Payment:
+- `ai_basic`
+  - `49,000 UZS` monthly
+  - payment amount stored as `4,900,000` tiyin
+- `ai_pro`
+  - `79,000 UZS` monthly
+  - payment amount stored as `7,900,000` tiyin
 
-- No Stripe integration.
-- No RevenueCat integration.
-- No webhook endpoint.
-- No entitlement sync.
-- No checkout or in-app purchase flow.
+Current subscription duration logic:
 
-## Known Logic Issue
+- each successful payment adds `30` days
+- subscription truth is written by verified webhook processing only
 
-`GoalsService.createGoal()` does not correctly block free users before creating an AI-managed goal. It sets a limit of 3 for non-pro users and only throws for free users when `aiGoalsCount >= limit`. A free user with fewer than 3 AI goals could pass this logic if the service were exposed.
+## What Does Not Exist Yet
 
-Correct server rule:
-
-- If user is free and requested goal type is AI-managed, reject immediately.
-- If user is premium and active AI-managed goal count is at limit, reject.
-
-## Required Before Payments
-
-- Decide provider: RevenueCat for mobile subscriptions or Stripe for web-first billing.
-- Define exact premium entitlements.
-- Add subscription provider fields to schema.
-- Add webhook event storage.
-- Add backend entitlement resolver.
-- Ensure frontend reads premium status from backend, not local mock state.
-
-## Required Before Launch
-
-- Server-side premium enforcement.
-- Payment provider integration.
-- Receipt or webhook validation.
-- Clear upgrade UI.
-- Clear downgrade/expired behavior.
-- AI quota behavior when subscription expires.
-
+- frontend billing UI
+- refund handling
+- notification flows around renewals or failed payments
+- provider reconciliation/admin tooling

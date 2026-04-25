@@ -1,0 +1,443 @@
+import type {
+  Goal,
+  Notification,
+  NotificationStatus,
+  NotificationSummary,
+  NotificationType,
+  GoalPriority,
+  GoalStatus,
+  GoalType,
+  SubscriptionPlan,
+  Task,
+  TaskProgressLog,
+  TaskStatus,
+  TaskType,
+  User,
+} from '@packages/shared';
+
+export interface AuthPayload {
+  accessToken: string;
+  user: User;
+}
+
+export interface CreateGoalInput {
+  title: string;
+  description?: string;
+  type: GoalType;
+  targetDate: Date;
+  priority?: GoalPriority;
+}
+
+export interface CreateTaskInput {
+  goalId: string;
+  title: string;
+  description?: string;
+  type: TaskType;
+  plannedDate: Date;
+  startTime?: string;
+  endTime?: string;
+  estimatedMinutes?: number;
+  targetValue?: number;
+  targetUnit?: string;
+}
+
+export interface UpdateTaskInput {
+  title?: string;
+  description?: string | null;
+  type?: TaskType;
+  plannedDate?: Date;
+  startTime?: string | null;
+  endTime?: string | null;
+  estimatedMinutes?: number | null;
+  targetValue?: number | null;
+  targetUnit?: string | null;
+}
+
+export interface UpdateTaskStatusInput {
+  status: TaskStatus;
+  completionPercent?: number;
+  completedValue?: number;
+  note?: string;
+}
+
+export interface TaskStatusUpdateResult {
+  task: Task;
+  progressLog: TaskProgressLog;
+  projectedDate: Date;
+}
+
+export interface RegisterDeviceInput {
+  token: string;
+  platform: 'ios' | 'android' | 'expo';
+}
+
+interface ApiGoal {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string | null;
+  type: GoalType;
+  priority: GoalPriority;
+  status: GoalStatus;
+  targetDate: string;
+  projectedDate: string;
+  isCompleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ApiTask {
+  id: string;
+  goalId: string;
+  planId?: string | null;
+  milestoneId?: string | null;
+  title: string;
+  description?: string | null;
+  status: TaskStatus;
+  type: TaskType;
+  plannedDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  completedDate?: string | null;
+  estimatedMinutes?: number | null;
+  targetValue?: number | null;
+  completedValue?: number | null;
+  targetUnit?: string | null;
+  source: Task['source'];
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ApiProgressLog {
+  id: string;
+  userId: string;
+  taskId: string;
+  status: TaskStatus;
+  completionPercent?: number | null;
+  completedValue?: number | null;
+  note?: string | null;
+  loggedAt: string;
+}
+
+interface ApiUser {
+  id: string;
+  email: string;
+  subscriptionPlan: SubscriptionPlan;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface ApiNotification {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  dedupeKey?: string | null;
+  metadata?: unknown;
+  readAt?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+interface ApiNotificationSummary {
+  currentStreak: number;
+  bestStreak: number;
+  todayCompletionRate: number;
+  todayCompletedTasks: number;
+  todayTotalTasks: number;
+  missedTasksCount: number;
+  behindGoalsCount: number;
+  aheadGoalsCount: number;
+  unreadCount: number;
+}
+
+interface RequestOptions extends RequestInit {
+  token?: string | null;
+}
+
+const BASE_URL = resolveBaseUrl();
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+  }
+}
+
+export class UnauthorizedError extends ApiError {}
+
+export async function loginRequest(email: string, password: string) {
+  const response = await request<{ accessToken: string; user: ApiUser }>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+
+  return {
+    accessToken: response.accessToken,
+    user: normalizeUser(response.user),
+  };
+}
+
+export async function registerRequest(email: string, password: string) {
+  const response = await request<{ accessToken: string; user: ApiUser }>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+
+  return {
+    accessToken: response.accessToken,
+    user: normalizeUser(response.user),
+  };
+}
+
+export async function fetchCurrentUser(token: string) {
+  const response = await request<ApiUser>('/users/me', {
+    token,
+  });
+
+  return normalizeUser(response);
+}
+
+export async function fetchGoals(token: string) {
+  const response = await request<ApiGoal[]>('/goals', { token });
+  return response.map(normalizeGoal);
+}
+
+export async function fetchGoal(token: string, goalId: string) {
+  const response = await request<ApiGoal>(`/goals/${goalId}`, { token });
+  return normalizeGoal(response);
+}
+
+export async function createGoalRequest(token: string, input: CreateGoalInput) {
+  const response = await request<ApiGoal>('/goals', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({
+      title: input.title,
+      description: input.description,
+      type: input.type,
+      targetDate: input.targetDate.toISOString(),
+      priority: input.priority,
+    }),
+  });
+
+  return normalizeGoal(response);
+}
+
+export async function fetchTasks(token: string, goalId?: string) {
+  const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : '';
+  const response = await request<ApiTask[]>(`/tasks${query}`, { token });
+  return response.map(normalizeTask);
+}
+
+export async function createTaskRequest(token: string, input: CreateTaskInput) {
+  const response = await request<ApiTask>('/tasks', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({
+      goalId: input.goalId,
+      title: input.title,
+      description: input.description,
+      type: input.type,
+      plannedDate: input.plannedDate.toISOString(),
+      startTime: input.startTime,
+      endTime: input.endTime,
+      estimatedMinutes: input.estimatedMinutes,
+      targetValue: input.targetValue,
+      targetUnit: input.targetUnit,
+    }),
+  });
+
+  return normalizeTask(response);
+}
+
+export async function updateTaskRequest(token: string, taskId: string, input: UpdateTaskInput) {
+  const response = await request<ApiTask>(`/tasks/${taskId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({
+      ...input,
+      plannedDate: input.plannedDate?.toISOString(),
+    }),
+  });
+
+  return normalizeTask(response);
+}
+
+export async function updateTaskStatusRequest(token: string, taskId: string, input: UpdateTaskStatusInput) {
+  const response = await request<{
+    task: ApiTask;
+    progressLog: ApiProgressLog;
+    projectedDate: string;
+  }>(`/tasks/${taskId}/status`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(input),
+  });
+
+  return {
+    task: normalizeTask(response.task),
+    progressLog: normalizeProgressLog(response.progressLog),
+    projectedDate: new Date(response.projectedDate),
+  };
+}
+
+export async function fetchNotificationsRequest(token: string) {
+  const response = await request<ApiNotification[]>('/notifications', { token });
+  return response.map(normalizeNotification);
+}
+
+export async function fetchNotificationSummaryRequest(token: string) {
+  const response = await request<ApiNotificationSummary>('/notifications/summary', { token });
+  return response;
+}
+
+export async function markNotificationReadRequest(token: string, notificationId: string) {
+  const response = await request<ApiNotification>(`/notifications/${notificationId}/read`, {
+    method: 'PATCH',
+    token,
+  });
+
+  return normalizeNotification(response);
+}
+
+export async function registerDeviceRequest(token: string, input: RegisterDeviceInput) {
+  return request('/notifications/devices', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(input),
+  });
+}
+
+async function request<T>(path: string, options: RequestOptions = {}) {
+  const headers = new Headers(options.headers);
+  headers.set('Accept', 'application/json');
+
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (options.token) {
+    headers.set('Authorization', `Bearer ${options.token}`);
+  }
+
+  const response = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  const text = await response.text();
+  const data = text ? safeJsonParse(text) : null;
+
+  if (!response.ok) {
+    const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
+
+    if (response.status === 401) {
+      throw new UnauthorizedError(response.status, message, data);
+    }
+
+    throw new ApiError(response.status, message, data);
+  }
+
+  return data as T;
+}
+
+function normalizeUser(user: ApiUser): User {
+  return {
+    id: user.id,
+    email: user.email,
+    subscriptionPlan: user.subscriptionPlan,
+    createdAt: user.createdAt ? new Date(user.createdAt) : undefined,
+    updatedAt: user.updatedAt ? new Date(user.updatedAt) : undefined,
+  };
+}
+
+function normalizeGoal(goal: ApiGoal): Goal {
+  return {
+    ...goal,
+    description: goal.description ?? undefined,
+    targetDate: new Date(goal.targetDate),
+    projectedDate: new Date(goal.projectedDate),
+    createdAt: new Date(goal.createdAt),
+    updatedAt: new Date(goal.updatedAt),
+  };
+}
+
+function normalizeTask(task: ApiTask): Task {
+  return {
+    ...task,
+    planId: task.planId ?? undefined,
+    milestoneId: task.milestoneId ?? undefined,
+    description: task.description ?? undefined,
+    plannedDate: new Date(task.plannedDate),
+    startTime: task.startTime ?? undefined,
+    endTime: task.endTime ?? undefined,
+    completedDate: task.completedDate ? new Date(task.completedDate) : undefined,
+    estimatedMinutes: task.estimatedMinutes ?? undefined,
+    targetValue: task.targetValue ?? undefined,
+    completedValue: task.completedValue ?? undefined,
+    targetUnit: task.targetUnit ?? undefined,
+    createdAt: new Date(task.createdAt),
+    updatedAt: new Date(task.updatedAt),
+  };
+}
+
+function normalizeProgressLog(progressLog: ApiProgressLog): TaskProgressLog {
+  return {
+    ...progressLog,
+    completionPercent: progressLog.completionPercent ?? undefined,
+    completedValue: progressLog.completedValue ?? undefined,
+    note: progressLog.note ?? undefined,
+    loggedAt: new Date(progressLog.loggedAt),
+  };
+}
+
+function normalizeNotification(notification: ApiNotification): Notification {
+  return {
+    ...notification,
+    dedupeKey: notification.dedupeKey ?? undefined,
+    readAt: notification.readAt ? new Date(notification.readAt) : undefined,
+    createdAt: new Date(notification.createdAt),
+    updatedAt: notification.updatedAt ? new Date(notification.updatedAt) : undefined,
+  };
+}
+
+function extractErrorMessage(data: unknown) {
+  if (data && typeof data === 'object' && 'message' in data) {
+    const message = (data as { message?: unknown }).message;
+
+    if (Array.isArray(message)) {
+      return message.join(', ');
+    }
+
+    if (typeof message === 'string') {
+      return message;
+    }
+  }
+
+  return null;
+}
+
+function safeJsonParse(value: string) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function resolveBaseUrl() {
+  const processEnv = typeof process !== 'undefined'
+    ? process.env?.EXPO_PUBLIC_API_URL
+      ?? process.env?.EXPO_PUBLIC_API_BASE_URL
+      ?? process.env?.VITE_API_BASE_URL
+    : undefined;
+
+  return (processEnv ?? 'http://localhost:3001').replace(/\/$/, '');
+}

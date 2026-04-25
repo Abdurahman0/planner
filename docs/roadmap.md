@@ -1,112 +1,149 @@
 # Roadmap
 
-## Current Project Status
+## CURRENT DONE
 
-This project is currently a visual scaffold / partial MVP foundation.
+- Prisma schema alignment
+- shared domain type alignment
+- database migration
+- database seed
+- backend bootstrap
+- `main.ts`
+- `GET /health`
+- secure auth foundation
+- `POST /auth/register`
+- `POST /auth/login`
+- JWT auth
+- `GET /users/me`
+- Goals API
+- goal ownership checks
+- premium AI-goal enforcement in backend
+- Tasks API
+- task ownership checks
+- TaskProgressLog writes on task status updates
+- deadline movement logic based on TaskProgressLog
+- frontend auth integration
+- frontend goals integration
+- frontend tasks integration
+- AI plan generation integration
+- AI replanning integration
+- AI usage logging and validation
+- payment transaction model
+- Click payment integration
+- Payme payment integration
+- webhook-driven subscription upgrades
+- idempotent payment processing
+- notifications API
+- retention summary API
+- Expo push token registration
+- frontend notification display
+- daily task reminders
+- missed task alerts
+- progress feedback notifications
+- streak milestone notifications
 
-Implemented:
+## IN PROGRESS
 
-- Vite web preview of mobile UI.
-- Expo Router style file structure.
-- Dashboard, goals, create goal, calendar, progress, and profile screens.
-- Local mock Zustand store.
-- Month, week, and day planner views.
-- Recharts line and pie chart prototypes.
-- Prisma schema with core entities.
-- Thin NestJS module scaffold.
-- Placeholder AI service.
-- Shared domain types and a weak deadline calculator.
+- launch readiness and growth execution
 
-Not implemented:
+## NEXT STEPS (STRICT ORDER)
 
-- Real auth.
-- Real backend bootstrap.
-- Real frontend API layer.
-- Real persistence from mobile screens.
-- Real AI plan generation.
-- Real AI replanning.
-- Real payment integration.
-- Real notifications.
-- Real task progress logging.
-- Real schedule/availability persistence.
-- Real production deadline projection.
+1. launch instrumentation and retention analytics hardening
+2. launch strategy and user acquisition
 
-## MVP Scope
+## Detailed Progress State
 
-Minimum viable production path:
+### Backend
 
-- Users can sign up and log in.
-- Users can create manual goals and tasks.
-- Users can complete, partially complete, or fail tasks.
-- Goals and tasks persist in PostgreSQL.
-- Dashboard, goals, calendar, and progress screens use real backend data.
-- Projected deadlines update from backend logic.
-- Premium user state is enforced server-side.
-- AI-managed goal creation works for premium users.
-- AI replanning is explicit and versioned.
+Done:
 
-## Future Scope
+- bootstrap
+- validation
+- auth
+- protected current-user endpoint
+- goals endpoints with ownership checks
+- premium AI-goal enforcement
+- tasks endpoints with ownership checks
+- TaskProgressLog writes on status updates
+- projected deadline recalculation based on real progress
+- AI generate-plan endpoint
+- AI replan endpoint
+- AI provider validation and usage logging
+- payment initiation endpoint
+- payment webhook endpoint
+- verified subscription upgrade flow
+- idempotent transaction processing
+- notifications endpoints
+- retention summary endpoint
+- daily notification generation
+- streak reward generation
 
-Post-MVP work:
+Next:
 
-- Advanced recurring tasks.
-- Full calendar drag/drop.
-- Rich notification scheduling.
-- Referral program.
-- Admin dashboard.
-- Multi-device sync polish.
-- Advanced analytics.
-- Higher premium tiers.
+- launch hardening for notifications and growth
 
-## Recommended Implementation Order
+### Database
 
-1. Stabilize shared domain types and Prisma schema.
-2. Build real backend bootstrap, auth, users, goals, and tasks APIs.
-3. Replace Zustand mock data with API-backed React Query flows.
-4. Implement task progress logs and projected deadline recalculation.
-5. Implement real planner scheduling model.
-6. Add AI plan generation and replan behind premium quota.
-7. Add subscriptions and payments.
-8. Add notifications.
-9. Harden QA, native Expo build, analytics, monitoring, and release process.
+Done:
 
-## Immediate Technical Priorities
+- aligned schema
+- seed data
 
-### 1. Domain and Schema Alignment
+Next:
 
-- Convert string status/type fields to enums.
-- Add missing `priority` and `status` to Prisma `Goal`, or remove them from shared frontend types if not needed.
-- Add scheduled task start/end fields.
-- Add plan-to-task relation.
-- Add user availability model.
+- broader goal/task data usage from frontend clients
 
-### 2. Backend Foundation
+### Frontend
 
-- Add NestJS `main.ts`.
-- Add controllers and DTOs.
-- Add auth and guards.
-- Add ownership checks.
-- Add validation and structured errors.
+Current status:
 
-### 3. Frontend Data Migration
+- connected to backend auth/goals/tasks APIs
+- no longer using mock goal/task/user data
+- secure token storage on native with session-storage fallback on web preview
+- notification list and unread state are connected to backend APIs
+- Expo push token registration is wired into app bootstrap on supported devices
 
-- Create typed API client.
-- Use React Query for server state.
-- Keep Zustand only for UI state or remove it where unnecessary.
-- Remove random mock task generation from production path.
+Next:
 
-### 4. Planner and Progress
+- billing UI
+- richer task/planner UX
 
-- Add task progress write flow.
-- Add partial and failed task UI.
-- Recalculate projected deadlines on backend.
-- Feed charts from persisted progress data.
+### AI
 
-### 5. AI Integration
+Current status:
 
-- Implement structured prompt input.
-- Validate structured AI output.
-- Persist plan versions.
-- Log usage.
-- Enforce quota server-side.
+- implemented behind guarded backend endpoints
+- not connected to frontend yet
 
+Next:
+
+- frontend AI entry points
+
+### Payments
+
+Current status:
+
+- backend payment initiation is implemented
+- backend webhook confirmation is implemented
+- Click flow is implemented
+- Payme Merchant API webhook flow is implemented
+- subscription upgrade truth now comes from backend payment processing
+
+Next:
+
+- frontend billing screen
+- notifications for successful and failed payments
+
+### Retention
+
+Current status:
+
+- backend generates task reminders, missed-task alerts, progress feedback, and streak rewards
+- backend stores notifications and exposes authenticated notification APIs
+- frontend displays notifications and marks them read
+- streak metrics now come from backend summary data, not hardcoded UI values
+
+Next:
+
+- push receipt handling
+- delivery preferences
+- launch analytics around notification open and retention impact

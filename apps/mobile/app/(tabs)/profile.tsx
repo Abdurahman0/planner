@@ -1,11 +1,30 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useEffect } from 'react';
+import { useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
 import { SubscriptionPlan } from '@packages/shared';
 import { Crown, Settings, LogOut, ChevronRight } from 'lucide-react-native';
+import { NotificationsPanel } from '../../src/components/NotificationsPanel';
 
 export default function ProfileScreen() {
-  const { user } = useStore();
+  const user = useStore((state) => state.user);
+  const notifications = useStore((state) => state.notifications);
+  const notificationSummary = useStore((state) => state.notificationSummary);
+  const logout = useStore((state) => state.logout);
+  const fetchNotifications = useStore((state) => state.fetchNotifications);
+  const fetchNotificationSummary = useStore((state) => state.fetchNotificationSummary);
+  const markNotificationRead = useStore((state) => state.markNotificationRead);
   const isPremium = user?.subscriptionPlan !== SubscriptionPlan.FREE;
+  const router = useRouter();
+
+  useEffect(() => {
+    void Promise.all([fetchNotifications(), fetchNotificationSummary()]);
+  }, [fetchNotificationSummary, fetchNotifications]);
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/auth');
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -40,10 +59,20 @@ export default function ProfileScreen() {
             <Text style={styles.menuText}>Account Settings</Text>
             <ChevronRight size={20} color="#444" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => void handleLogout()}>
             <LogOut size={20} color="#EF4444" />
             <Text style={[styles.menuText, { color: '#EF4444' }]}>Sign Out</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <NotificationsPanel
+            notifications={notifications}
+            unreadCount={notificationSummary?.unreadCount ?? 0}
+            onPressNotification={(notificationId) => {
+              void markNotificationRead(notificationId);
+            }}
+          />
         </View>
       </View>
     </ScrollView>

@@ -5,7 +5,7 @@ import { CheckCircle2, Circle, AlertCircle, Clock } from 'lucide-react-native';
 
 interface TaskItemProps {
   task: Task;
-  onToggle: (id: string) => void;
+  onToggle?: () => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle }) => {
@@ -25,7 +25,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle }) => {
   return (
     <TouchableOpacity 
       style={[styles.container, task.status === TaskStatus.DONE && styles.completed]}
-      onPress={() => onToggle(task.id)}
+      onPress={onToggle}
     >
       <View style={styles.iconContainer}>
         {getIcon()}

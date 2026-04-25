@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useStore } from '../../src/store/useStore';
 import { PlannerHeader, PlannerView } from '../../src/components/PlannerHeader';
@@ -7,9 +8,17 @@ import { WeekView } from '../../src/components/WeekView';
 import { DayView } from '../../src/components/DayView';
 
 export default function CalendarScreen() {
-  const { tasks, goals, availability } = useStore();
+  const tasks = useStore((state) => state.tasks);
+  const goals = useStore((state) => state.goals);
+  const availability = useStore((state) => state.availability);
+  const fetchGoals = useStore((state) => state.fetchGoals);
+  const fetchTasks = useStore((state) => state.fetchTasks);
   const [view, setView] = useState<PlannerView>('day');
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  useEffect(() => {
+    void Promise.all([fetchGoals(), fetchTasks()]);
+  }, [fetchGoals, fetchTasks]);
 
   const handlePrev = () => {
     const newDate = new Date(selectedDate);

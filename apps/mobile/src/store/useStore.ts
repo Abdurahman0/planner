@@ -1,179 +1,431 @@
+import { Alert } from 'react-native';
 import { create } from 'zustand';
-import { User, Goal, Task, SubscriptionPlan, GoalType, TaskStatus, TaskType, AvailabilitySlot, AvailabilityType, GoalPriority, GoalStatus, TaskSource } from '@packages/shared';
+import {
+  Goal,
+  GoalPriority,
+  GoalType,
+  Notification,
+  NotificationSummary,
+  Task,
+  TaskStatus,
+  TaskType,
+  User,
+  AvailabilitySlot,
+} from '@packages/shared';
+import {
+  ApiError,
+  UnauthorizedError,
+  createGoalRequest,
+  createTaskRequest,
+  fetchCurrentUser,
+  fetchGoal,
+  fetchGoals,
+  fetchNotificationSummaryRequest,
+  fetchNotificationsRequest,
+  fetchTasks,
+  loginRequest,
+  markNotificationReadRequest,
+  registerDeviceRequest,
+  registerRequest,
+  updateTaskRequest,
+  updateTaskStatusRequest,
+  type CreateGoalInput,
+  type CreateTaskInput,
+  type UpdateTaskInput,
+  type UpdateTaskStatusInput,
+} from '../lib/api';
+import { registerForPushNotificationsAsync } from '../lib/pushNotifications';
+import { clearStoredToken, getStoredToken, storeToken } from '../lib/tokenStorage';
 
 interface AppState {
+  token: string | null;
   user: User | null;
   goals: Goal[];
   tasks: Task[];
+  notifications: Notification[];
+  notificationSummary: NotificationSummary | null;
   availability: AvailabilitySlot[];
   isLoading: boolean;
-  setUser: (user: User | null) => void;
-  setGoals: (goals: Goal[]) => void;
-  setTasks: (tasks: Task[]) => void;
-  addGoal: (goal: Goal) => void;
-  updateGoal: (goalId: string, updates: Partial<Goal>) => void;
-  removeGoal: (goalId: string) => void;
-  updateTaskStatus: (taskId: string, status: Task['status']) => void;
+  isInitialized: boolean;
+  initializeAuth: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  fetchGoals: () => Promise<void>;
+  fetchGoal: (goalId: string) => Promise<Goal>;
+  createGoal: (input: CreateGoalInput) => Promise<Goal>;
+  fetchTasks: (goalId?: string) => Promise<Task[]>;
+  createTask: (input: CreateTaskInput) => Promise<Task>;
+  updateTask: (taskId: string, input: UpdateTaskInput) => Promise<Task>;
+  updateTaskStatus: (taskId: string, input: UpdateTaskStatusInput) => Promise<void>;
+  fetchNotifications: () => Promise<Notification[]>;
+  fetchNotificationSummary: () => Promise<NotificationSummary>;
+  markNotificationRead: (notificationId: string) => Promise<void>;
 }
 
-const MOCK_USER: User = {
-  id: 'u1',
-  email: 'premium@example.com',
-  subscriptionPlan: SubscriptionPlan.AI_BASIC,
-  createdAt: new Date(),
-};
+export const useStore = create<AppState>((set, get) => ({
+  token: null,
+  user: null,
+  goals: [],
+  tasks: [],
+  notifications: [],
+  notificationSummary: null,
+  availability: [],
+  isLoading: false,
+  isInitialized: false,
 
-const MOCK_GOALS: Goal[] = [
-  {
-    id: 'g1',
-    userId: 'u1',
-    title: 'Learn NestJS & Prisma',
-    type: GoalType.AI_MANAGED,
-    priority: GoalPriority.HIGH,
-    status: GoalStatus.IN_PROGRESS,
-    targetDate: new Date('2026-05-01'),
-    projectedDate: new Date('2026-05-05'),
-    isCompleted: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: 'g2',
-    userId: 'u1',
-    title: 'Daily Workout',
-    type: GoalType.MANUAL,
-    priority: GoalPriority.MEDIUM,
-    status: GoalStatus.IN_PROGRESS,
-    targetDate: new Date('2026-12-31'),
-    projectedDate: new Date('2026-12-31'),
-    isCompleted: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+  initializeAuth: async () => {
+    if (get().isInitialized) {
+      return;
+    }
 
-const generateHistoricalTasks = () => {
-  const tasks: Task[] = [];
-  const now = new Date();
-  for (let i = 14; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    
-    // Generate 3-5 tasks per day
-    const count = Math.floor(Math.random() * 3) + 3;
-    for (let j = 0; j < count; j++) {
-      const isDone = Math.random() > 0.3;
-      tasks.push({
-        id: `hist-${i}-${j}`,
-        goalId: j % 2 === 0 ? 'g1' : 'g2',
-        title: `Historical Task ${i}-${j}`,
-        status: isDone ? TaskStatus.DONE : (Math.random() > 0.5 ? TaskStatus.FAILED : TaskStatus.TODO),
-        type: TaskType.TIME_BASED,
-        plannedDate: date,
-        source: Math.random() > 0.5 ? TaskSource.AI : TaskSource.MANUAL,
-        order: j,
+    set({ isLoading: true });
+
+    try {
+      const token = await getStoredToken();
+
+      if (!token) {
+        set({
+          token: null,
+          user: null,
+          goals: [],
+          tasks: [],
+          notifications: [],
+          notificationSummary: null,
+          isInitialized: true,
+          isLoading: false,
+        });
+        return;
+      }
+
+      const user = await fetchCurrentUser(token);
+      set({ token, user });
+      await hydrateAppData(token, set);
+      await syncPushRegistration(token);
+      set({ isInitialized: true, isLoading: false });
+    } catch (error) {
+      await clearStoredToken();
+      set({
+        token: null,
+        user: null,
+        goals: [],
+        tasks: [],
+        notifications: [],
+        notificationSummary: null,
+        isInitialized: true,
+        isLoading: false,
       });
     }
-  }
-  return tasks;
-};
-
-const MOCK_TASKS: Task[] = [
-  ...generateHistoricalTasks(),
-  {
-    id: 't1',
-    goalId: 'g1',
-    title: 'Setup Project Structure',
-    status: TaskStatus.DONE,
-    type: TaskType.TIME_BASED,
-    plannedDate: new Date(),
-    startTime: '09:00',
-    endTime: '10:30',
-    estimatedMinutes: 90,
-    source: TaskSource.AI,
-    order: 1,
   },
-  {
-    id: 't2',
-    goalId: 'g1',
-    title: 'Define Prisma Schema',
-    status: TaskStatus.TODO,
-    type: TaskType.TIME_BASED,
-    plannedDate: new Date(),
-    startTime: '11:00',
-    endTime: '12:00',
-    estimatedMinutes: 60,
-    source: TaskSource.AI,
-    order: 2,
+
+  login: async (email: string, password: string) => {
+    set({ isLoading: true });
+
+    try {
+      const response = await loginRequest(email.trim().toLowerCase(), password);
+      await storeToken(response.accessToken);
+      set({
+        token: response.accessToken,
+        user: response.user,
+      });
+      await hydrateAppData(response.accessToken, set);
+      await syncPushRegistration(response.accessToken);
+      set({ isInitialized: true, isLoading: false });
+    } catch (error) {
+      set({ isLoading: false });
+      throw normalizeError(error);
+    }
   },
-  {
-    id: 't3',
-    goalId: 'g2',
-    title: 'Morning Run (5km)',
-    status: TaskStatus.TODO,
-    type: TaskType.UNIT_BASED,
-    plannedDate: new Date(),
-    startTime: '07:00',
-    endTime: '08:00',
-    targetValue: 5,
-    targetUnit: 'km',
-    source: TaskSource.MANUAL,
-    order: 1,
+
+  register: async (email: string, password: string) => {
+    set({ isLoading: true });
+
+    try {
+      const response = await registerRequest(email.trim().toLowerCase(), password);
+      await storeToken(response.accessToken);
+      set({
+        token: response.accessToken,
+        user: response.user,
+      });
+      await hydrateAppData(response.accessToken, set);
+      await syncPushRegistration(response.accessToken);
+      set({ isInitialized: true, isLoading: false });
+    } catch (error) {
+      set({ isLoading: false });
+      throw normalizeError(error);
+    }
   },
-  {
-    id: 't4',
-    goalId: 'g1',
-    title: 'Review Documentation',
-    status: TaskStatus.TODO,
-    type: TaskType.TIME_BASED,
-    plannedDate: new Date(),
-    source: TaskSource.MANUAL,
-    order: 3,
+
+  logout: async () => {
+    await clearStoredToken();
+    set({
+      token: null,
+      user: null,
+      goals: [],
+      tasks: [],
+      notifications: [],
+      notificationSummary: null,
+      availability: [],
+      isLoading: false,
+      isInitialized: true,
+    });
   },
-];
 
-const buildAvailabilitySlots = (): AvailabilitySlot[] => {
-  const slots: AvailabilitySlot[] = [];
+  fetchGoals: async () => {
+    const token = requireToken(get);
 
-  for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek += 1) {
-    slots.push(
-      { id: `sleep-am-${dayOfWeek}`, userId: 'u1', type: AvailabilityType.SLEEP, startTime: '00:00', endTime: '07:00', dayOfWeek },
-      { id: `sleep-pm-${dayOfWeek}`, userId: 'u1', type: AvailabilityType.SLEEP, startTime: '23:00', endTime: '23:59', dayOfWeek },
-    );
-  }
+    try {
+      const goals = await fetchGoals(token);
+      set({ goals });
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
 
-  for (let dayOfWeek = 1; dayOfWeek <= 5; dayOfWeek += 1) {
-    slots.push({ id: `work-${dayOfWeek}`, userId: 'u1', type: AvailabilityType.WORK, startTime: '09:00', endTime: '17:00', dayOfWeek });
-  }
+  fetchGoal: async (goalId: string) => {
+    const token = requireToken(get);
 
-  return slots;
-};
+    try {
+      const goal = await fetchGoal(token, goalId);
+      set((state) => ({
+        goals: upsertById(state.goals, goal),
+      }));
+      return goal;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
 
-const MOCK_AVAILABILITY: AvailabilitySlot[] = buildAvailabilitySlots();
+  createGoal: async (input: CreateGoalInput) => {
+    const token = requireToken(get);
 
-export const useStore = create<AppState>((set) => ({
-  user: MOCK_USER,
-  goals: MOCK_GOALS,
-  tasks: MOCK_TASKS,
-  availability: MOCK_AVAILABILITY,
-  isLoading: false,
-  setUser: (user) => set({ user }),
-  setGoals: (goals) => set({ goals }),
-  setTasks: (tasks) => set({ tasks }),
-  addGoal: (goal) => set((state) => ({ goals: [goal, ...state.goals] })),
-  updateGoal: (goalId, updates) =>
-    set((state) => ({
-      goals: state.goals.map((g) => (g.id === goalId ? { ...g, ...updates, updatedAt: new Date() } : g)),
-    })),
-  removeGoal: (goalId) =>
-    set((state) => ({
-      goals: state.goals.filter((g) => g.id !== goalId),
-      tasks: state.tasks.filter((t) => t.goalId !== goalId),
-    })),
-  updateTaskStatus: (taskId, status) =>
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === taskId ? { ...t, status } : t
-      ),
-    })),
+    try {
+      const goal = await createGoalRequest(token, input);
+      set((state) => ({
+        goals: [goal, ...state.goals.filter((item) => item.id !== goal.id)],
+      }));
+      return goal;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  fetchTasks: async (goalId?: string) => {
+    const token = requireToken(get);
+
+    try {
+      const fetchedTasks = await fetchTasks(token, goalId);
+
+      set((state) => ({
+        tasks: goalId
+          ? mergeTasksForGoal(state.tasks, goalId, fetchedTasks)
+          : fetchedTasks,
+      }));
+
+      return fetchedTasks;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  createTask: async (input: CreateTaskInput) => {
+    const token = requireToken(get);
+
+    try {
+      const task = await createTaskRequest(token, input);
+      set((state) => ({
+        tasks: upsertById(state.tasks, task),
+      }));
+      return task;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  updateTask: async (taskId: string, input: UpdateTaskInput) => {
+    const token = requireToken(get);
+
+    try {
+      const task = await updateTaskRequest(token, taskId, input);
+      set((state) => ({
+        tasks: upsertById(state.tasks, task),
+      }));
+      return task;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  updateTaskStatus: async (taskId: string, input: UpdateTaskStatusInput) => {
+    const token = requireToken(get);
+    const task = get().tasks.find((item) => item.id === taskId);
+
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    try {
+      const result = await updateTaskStatusRequest(token, taskId, input);
+
+      set((state) => ({
+        tasks: upsertById(state.tasks, result.task),
+      }));
+
+      await Promise.all([
+        get().fetchGoal(task.goalId),
+        get().fetchNotifications(),
+        get().fetchNotificationSummary(),
+      ]);
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  fetchNotifications: async () => {
+    const token = requireToken(get);
+
+    try {
+      const notifications = await fetchNotificationsRequest(token);
+      set({ notifications });
+      return notifications;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  fetchNotificationSummary: async () => {
+    const token = requireToken(get);
+
+    try {
+      const notificationSummary = await fetchNotificationSummaryRequest(token);
+      set({ notificationSummary });
+      return notificationSummary;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  markNotificationRead: async (notificationId: string) => {
+    const token = requireToken(get);
+
+    try {
+      const notification = await markNotificationReadRequest(token, notificationId);
+      set((state) => ({
+        notifications: upsertById(state.notifications, notification).sort((left, right) => {
+          if (left.status !== right.status) {
+            return left.status.localeCompare(right.status);
+          }
+
+          return right.createdAt.getTime() - left.createdAt.getTime();
+        }),
+      }));
+
+      await get().fetchNotificationSummary();
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
 }));
+
+async function hydrateAppData(
+  token: string,
+  set: (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void,
+) {
+  const [goals, tasks] = await Promise.all([fetchGoals(token), fetchTasks(token)]);
+  const [notifications, notificationSummary] = await Promise.all([
+    fetchNotificationsRequest(token),
+    fetchNotificationSummaryRequest(token),
+  ]);
+  set({
+    goals,
+    tasks,
+    notifications,
+    notificationSummary,
+    availability: [],
+  });
+}
+
+async function syncPushRegistration(token: string) {
+  try {
+    const registration = await registerForPushNotificationsAsync();
+
+    if (!registration) {
+      return;
+    }
+
+    await registerDeviceRequest(token, registration);
+  } catch {
+    // Push registration must not block app startup.
+  }
+}
+
+function requireToken(get: () => AppState) {
+  const token = get().token;
+
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+
+  return token;
+}
+
+async function handleApiError(
+  error: unknown,
+  set: (partial: Partial<AppState>) => void,
+) {
+  if (error instanceof UnauthorizedError) {
+    await clearStoredToken();
+    set({
+      token: null,
+      user: null,
+      goals: [],
+      tasks: [],
+      notifications: [],
+      notificationSummary: null,
+      availability: [],
+      isLoading: false,
+      isInitialized: true,
+    });
+  }
+}
+
+function normalizeError(error: unknown) {
+  if (error instanceof ApiError) {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error('Unexpected error');
+}
+
+function upsertById<T extends { id: string }>(items: T[], nextItem: T) {
+  return [nextItem, ...items.filter((item) => item.id !== nextItem.id)];
+}
+
+function mergeTasksForGoal(existingTasks: Task[], goalId: string, nextTasks: Task[]) {
+  return [
+    ...existingTasks.filter((task) => task.goalId !== goalId),
+    ...nextTasks,
+  ].sort((left, right) => {
+    const dateDiff = left.plannedDate.getTime() - right.plannedDate.getTime();
+
+    if (dateDiff !== 0) {
+      return dateDiff;
+    }
+
+    return left.order - right.order;
+  });
+}

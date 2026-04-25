@@ -1,12 +1,26 @@
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
 import { GoalCard } from '../../src/components/GoalCard';
 import { Plus } from 'lucide-react-native';
 
 export default function GoalsScreen() {
-  const { goals } = useStore();
+  const goals = useStore((state) => state.goals);
+  const isLoading = useStore((state) => state.isLoading);
+  const fetchGoals = useStore((state) => state.fetchGoals);
   const router = useRouter();
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await fetchGoals();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to load goals';
+        Alert.alert('Load Failed', message);
+      }
+    })();
+  }, [fetchGoals]);
 
   return (
     <View style={styles.container}>
@@ -28,7 +42,7 @@ export default function GoalsScreen() {
           contentContainerStyle={styles.content}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No goals yet. Start by creating one!</Text>
+              <Text style={styles.emptyText}>{isLoading ? 'Loading goals...' : 'No goals yet. Start by creating one!'}</Text>
             </View>
           }
         />

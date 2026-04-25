@@ -1,19 +1,23 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Body, Controller, Inject, Post, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { AuthUser } from '../auth/types/auth-user';
 import { AiService } from './ai.service';
-import type { AIPlanRequest } from '@packages/shared';
+import { GeneratePlanDto } from './dto/generate-plan.dto';
+import { ReplanDto } from './dto/replan.dto';
 
 @Controller('ai')
+@UseGuards(JwtAuthGuard)
 export class AiController {
-  constructor(private aiService: AiService) {}
+  constructor(@Inject(AiService) private readonly aiService: AiService) {}
 
   @Post('generate-plan')
-  async generatePlan(@Request() req, @Body() body: AIPlanRequest) {
-    // Check subscription plan in real app
-    return this.aiService.generatePlan(body);
+  generatePlan(@CurrentUser() user: AuthUser, @Body() dto: GeneratePlanDto) {
+    return this.aiService.generatePlan(user, dto);
   }
 
   @Post('replan')
-  async replan(@Request() req, @Body() body: any) {
-    return this.aiService.replan(body.currentPlan, body.progress);
+  replan(@CurrentUser() user: AuthUser, @Body() dto: ReplanDto) {
+    return this.aiService.replan(user, dto);
   }
 }

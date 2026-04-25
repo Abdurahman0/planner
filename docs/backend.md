@@ -2,217 +2,340 @@
 
 ## Current Backend Status
 
-The backend is a NestJS scaffold, not a usable production API yet.
+The backend is now runnable and has real API foundation.
 
-Current files:
+Implemented:
 
-- `apps/backend/src/app.module.ts`: Imports auth, users, goals, tasks, AI, and subscriptions modules.
-- `apps/backend/src/prisma/prisma.service.ts`: Prisma client service with connect/disconnect hooks.
-- `apps/backend/src/modules/ai/ai.controller.ts`: Exposes AI plan generation and replan endpoints.
-- `apps/backend/src/modules/ai/ai.service.ts`: Placeholder AI service returning empty arrays.
-- `apps/backend/src/modules/goals/goals.service.ts`: Contains partial goal creation and goal query logic.
-- `apps/backend/src/modules/tasks/tasks.service.ts`: Contains partial task status update and projected date recalculation logic.
-- `apps/backend/src/modules/auth/auth.module.ts`: Empty module.
-- `apps/backend/src/modules/users/users.module.ts`: Empty module.
-- `apps/backend/src/modules/subscriptions/subscriptions.module.ts`: Empty module.
+- NestJS bootstrap
+- `main.ts`
+- CORS
+- global `ValidationPipe`
+- Prisma integration
+- health endpoint
+- auth endpoints
+- protected current-user endpoint
+- JWT-protected goals API
+- JWT-protected tasks API
+- TaskProgressLog writes on task status updates
+- projected deadline recalculation on task status updates
+- JWT-protected AI planning endpoints
+- AI usage logging
+- AI task creation through backend services
+- payment initiation endpoint
+- payment webhook processing
+- subscription upgrades from verified payment webhooks
+- notifications API
+- retention summary API
+- device registration for Expo push
+- daily reminder generation
+- missed task alert generation
+- progress feedback generation
+- streak notification generation
 
-## Missing Backend Foundation
+Not implemented yet:
 
-The backend currently lacks:
+- admin
 
-- `main.ts` bootstrap.
-- HTTP server startup configuration.
-- Controllers for users, goals, tasks, plans, progress, subscriptions, notifications, and devices.
-- Auth implementation.
-- Guards.
-- JWT/session logic.
-- Password hashing flow.
-- DTO classes.
-- Request validation pipes.
-- Response serializers.
-- Error handling policy.
-- Logging.
-- Rate limiting.
-- CORS configuration.
-- API versioning.
-- Frontend integration.
+## Current Structure
 
-## Current Modules
+Main backend areas:
+
+- `apps/backend/src/main.ts`
+- `apps/backend/src/app.module.ts`
+- `apps/backend/src/prisma`
+- `apps/backend/src/modules/health`
+- `apps/backend/src/modules/auth`
+- `apps/backend/src/modules/users`
+- `apps/backend/src/modules/goals`
+- `apps/backend/src/modules/tasks`
+- `apps/backend/src/modules/ai`
+- `apps/backend/src/modules/payments`
+- `apps/backend/src/modules/notifications`
+- scaffold `subscriptions` module remains, but payment logic now lives in `payments`
+
+## Modules
+
+### Health
+
+Implemented:
+
+- `GET /health`
+
+Response:
+
+```json
+{ "status": "ok" }
+```
 
 ### Auth
 
-Current status: missing.
-
-What exists:
-
-- Empty `AuthModule`.
-
-Required:
-
-- Register/login endpoints.
-- Password hashing.
-- JWT or session issuance.
-- Refresh/session handling.
-- Auth guard.
-- Current user context.
-- Device/session tracking integration.
-
-### Users
-
-Current status: missing.
-
-What exists:
-
-- Empty `UsersModule`.
-- Prisma `User` model.
-
-Required:
-
-- User profile endpoint.
-- Subscription status read model.
-- User settings.
-- Availability/schedule endpoints once modeled.
-
-### Goals
-
-Current status: partial service only.
-
-What exists:
-
-- `GoalsService.createGoal(userId, data)`.
-- `GoalsService.getGoals(userId)`.
-- Partial AI goal limit logic.
-
-Problems:
-
-- No `GoalsController`.
-- No DTO validation.
-- No auth guard.
-- Limit logic is inconsistent for free users. It calculates a limit of 3 for non-pro users, then only throws for free users when `aiGoalsCount >= limit`, which would allow a free user with fewer than 3 AI goals.
-- No transaction when creating AI goal, plan, milestones, and tasks.
-
-### Tasks
-
-Current status: partial service only.
-
-What exists:
-
-- `TasksService.updateTaskStatus(taskId, status)`.
-- Recalculates projected date after update.
-
-Problems:
-
-- No `TasksController`.
-- No auth/user ownership checks.
-- No progress log write.
-- No partial completion handling.
-- No failed-task flow.
-- No unit/time validation.
-- Projection logic is too weak for product requirements.
-
-### Plans
-
-Current status: schema only.
-
-Required:
-
-- Current plan retrieval.
-- Plan version creation.
-- Replan transition.
-- Milestone persistence.
-- Link tasks to plan versions.
-
-### Progress
-
-Current status: schema only.
-
-Required:
-
-- Task progress log write API.
-- Unit-based progress API.
-- Time-based progress API.
-- Analytics query endpoints.
-
-### AI
-
-Current status: placeholder endpoint and service.
-
-What exists:
-
-- `POST /ai/generate-plan`.
-- `POST /ai/replan`.
-- Empty `generatePlan()` and `replan()` return values.
-
-Problems:
-
-- No auth guard.
-- No subscription/quota enforcement.
-- No provider call.
-- No schema validation of AI output.
-- No usage logging.
-- Uses `any` for replan request body.
-
-### Subscriptions
-
-Current status: missing.
-
-What exists:
-
-- Empty `SubscriptionsModule`.
-- Prisma `Subscription` model.
-
-Required:
-
-- Payment provider integration.
-- Webhook endpoint.
-- Subscription status sync.
-- Premium entitlement resolver.
-
-### Notifications
-
-Current status: schema only.
-
-Required:
-
-- Notification preferences.
-- Push token registration.
-- Reminder scheduling.
-- Delivery provider integration.
-- Notification read state API.
-
-## API Structure Expectations
-
-Minimum first API surface:
+Implemented:
 
 - `POST /auth/register`
 - `POST /auth/login`
-- `GET /me`
-- `GET /goals`
+- JWT signing
+- password hashing with `bcryptjs`
+- DTO validation
+- JWT Bearer auth strategy
+
+### Users
+
+Implemented:
+
+- `GET /users/me`
+
+This route is protected and returns the authenticated user's safe profile.
+
+### Goals
+
+Implemented:
+
 - `POST /goals`
+- `GET /goals`
 - `GET /goals/:id`
 - `PATCH /goals/:id`
-- `GET /goals/:id/tasks`
-- `POST /goals/:id/tasks`
+- `DELETE /goals/:id`
+
+Rules enforced:
+
+- all goal routes require JWT
+- authenticated user id is the only source of `userId`
+- ownership is enforced on read/update/delete
+- non-owned goals return `404`
+- free users cannot create AI-managed goals
+- premium users can create AI-managed goals
+- premium users can have at most 3 active AI-managed goals
+- create sets `projectedDate = targetDate`
+- delete soft-archives goal by setting `status = archived`
+
+### Tasks
+
+Current status:
+
+- `POST /tasks`
+- `GET /tasks`
+- `GET /tasks/:id`
+- `PATCH /tasks/:id`
 - `PATCH /tasks/:id/status`
-- `POST /tasks/:id/progress`
-- `POST /ai/goals/:goalId/generate-plan`
-- `POST /ai/goals/:goalId/replan`
-- `GET /subscriptions/current`
-- `POST /devices`
 
-## Can Frontend Move To Real Backend Quickly?
+Rules enforced:
 
-Partially, but not safely without backend foundation work first.
+- all task routes require JWT
+- authenticated user id is the only source of ownership
+- goal ownership is validated before task creation
+- task ownership is enforced through the related goal on read/update/status update
+- non-owned tasks return `404`
+- `goalId` cannot be changed through the update endpoint
+- protected fields such as `createdAt` and `updatedAt` are not writable
+- status changes are isolated to `PATCH /tasks/:id/status`
+- every status update writes a `TaskProgressLog` record
+- every status update recalculates `Goal.projectedDate`
 
-Fast path:
+Current limitations:
 
-- Add NestJS bootstrap.
-- Add auth.
-- Add goals and tasks controllers.
-- Add DTOs and validation.
-- Add ownership checks.
-- Add typed frontend API client.
-- Replace mock Zustand server data with React Query.
+- no delete endpoint yet
+- no task-specific planner scheduling rules beyond field validation
+- deadline recalculation currently runs from task status/progress events, not from task create/update
 
-Do not connect the frontend directly to the current backend services without fixing auth, validation, and ownership. That would create insecure API behavior.
+### AI
 
+Current status:
+
+- `POST /ai/generate-plan`
+- `POST /ai/replan`
+
+Rules enforced:
+
+- all AI routes require JWT
+- free users cannot use AI planning
+- AI usage is quota-limited per user
+- AI output must be strict JSON
+- AI output is schema-validated before persistence
+- AI never writes directly to DB
+- backend persists AI-generated tasks through `TasksService`
+- replan replaces incomplete AI-generated tasks only
+
+Required env vars:
+
+- `GEMINI_API_KEY`
+- optional `AI_MODEL`
+
+### Subscriptions
+
+Current status:
+
+- subscription rows are updated from successful payment webhooks
+- `User.subscriptionPlan` is updated only by backend payment processing
+- plan extension duration is currently 30 days per paid transaction
+
+### Payments
+
+Current status:
+
+- `POST /payments/initiate`
+- `POST /payments/webhook`
+
+Rules enforced:
+
+- `POST /payments/initiate` requires JWT
+- webhook confirmation is the only path that upgrades a user
+- frontend success is not trusted
+- every payment attempt is stored in `PaymentTransaction`
+- successful webhook processing updates both `Subscription` and `User.subscriptionPlan`
+- duplicate webhook processing is idempotent
+- Click webhooks verify the signed payload before processing
+- Payme webhooks verify Basic auth credentials and source IP before processing
+- payment upgrades are provider-driven but backend-controlled
+
+Providers:
+
+- Click:
+  - initiate returns a hosted checkout URL payload
+  - webhook handles prepare/complete callbacks
+- Payme:
+  - initiate returns a checkout URL and checkout form fields
+  - webhook handles Merchant API methods:
+    - `CheckPerformTransaction`
+    - `CreateTransaction`
+    - `PerformTransaction`
+    - `CancelTransaction`
+    - `CheckTransaction`
+    - `GetStatement`
+
+Current limitations:
+
+- no frontend billing screen yet
+- no refund workflow
+- no fiscal receipt handling
+- no provider reconciliation dashboard
+
+### Notifications
+
+Current status:
+
+- `GET /notifications`
+- `GET /notifications/summary`
+- `POST /notifications/refresh`
+- `POST /notifications/devices`
+- `PATCH /notifications/:id/read`
+
+Rules enforced:
+
+- all notification routes require JWT
+- notifications are always user-scoped
+- device registration is user-scoped
+- notifications are deduplicated with backend-generated `dedupeKey`
+- push delivery is best-effort and never changes notification truth in DB
+- the frontend cannot mark another user's notifications as read
+
+Retention behavior implemented:
+
+- daily task reminder notification when the user has tasks scheduled for today
+- missed task alert when overdue tasks remain incomplete
+- progress feedback notification when projected deadlines move behind or ahead of target dates
+- streak reward notification when the user hits configured completion streak milestones
+
+Current implementation details:
+
+- notification generation is backed by real `Task`, `TaskProgressLog`, and `Goal.projectedDate` data
+- streaks are derived from real `TaskProgressLog` `done` entries, not frontend counters
+- task status updates trigger streak evaluation
+- a periodic backend sweep generates daily reminders, missed-task alerts, and progress feedback
+- Expo push tokens are stored in `UserDevice` and push delivery is sent through the Expo push API
+
+Current limitations:
+
+- there is no native push receipt processing yet
+- there is no notification preference system yet
+- there is no background job infrastructure beyond the in-process sweep interval
+
+## Implemented Endpoints
+
+- `GET /health`
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /users/me`
+- `POST /goals`
+- `GET /goals`
+- `GET /goals/:id`
+- `PATCH /goals/:id`
+- `DELETE /goals/:id`
+- `POST /tasks`
+- `GET /tasks`
+- `GET /tasks/:id`
+- `PATCH /tasks/:id`
+- `PATCH /tasks/:id/status`
+- `POST /ai/generate-plan`
+- `POST /ai/replan`
+- `POST /payments/initiate`
+- `POST /payments/webhook`
+- `GET /notifications`
+- `GET /notifications/summary`
+- `POST /notifications/refresh`
+- `POST /notifications/devices`
+- `PATCH /notifications/:id/read`
+
+## Auth Response Shape
+
+Register/login currently return:
+
+```json
+{
+  "accessToken": "jwt",
+  "user": {
+    "id": "string",
+    "email": "user@example.com",
+    "subscriptionPlan": "free"
+  }
+}
+```
+
+`GET /users/me` currently returns:
+
+```json
+{
+  "id": "string",
+  "email": "user@example.com",
+  "subscriptionPlan": "free"
+}
+```
+
+## Required Env Vars
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- optional `JWT_EXPIRES_IN`
+- optional `BACKEND_PORT`
+- `APP_BASE_URL`
+- optional `PAYMENT_RETURN_URL`
+- `PAYME_MERCHANT_ID`
+- optional `PAYME_MERCHANT_LOGIN`
+- `PAYME_MERCHANT_KEY`
+- optional `PAYME_CHECKOUT_URL`
+- `CLICK_SERVICE_ID`
+- `CLICK_MERCHANT_ID`
+- `CLICK_SECRET_KEY`
+- optional `CLICK_CHECKOUT_URL`
+
+## Deadline Projection Logic
+
+Current implementation:
+
+- expected workload is derived from task definitions
+  - `estimatedMinutes` for `time_based`
+  - `targetValue` for `unit_based`
+- completed workload is derived from `TaskProgressLog`
+  - `completionPercent` for `time_based`
+  - `completedValue` for `unit_based`
+- due workload is based on tasks planned on or before the current date
+- if completed workload is below due workload, `projectedDate` extends
+- if completed workload is above due workload, `projectedDate` shrinks
+- all projected date updates are done by backend code only
+
+## Immediate Backend Next Step
+
+The next backend implementation target is launch readiness and growth execution:
+
+- production-safe background job infrastructure for notifications
+- launch instrumentation and retention analytics
+- growth loops on top of the current subscription and notification system

@@ -2,10 +2,13 @@ import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, DarkTheme } from '@react-navigation/native';
 import { View, StyleSheet } from 'react-native';
+import { useAppBootstrap } from '../src/hooks/useAppBootstrap';
 
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
+  useAppBootstrap();
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={DarkTheme}>
