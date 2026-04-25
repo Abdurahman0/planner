@@ -20,6 +20,7 @@ export default defineConfig(({mode}) => {
         'react-native': 'react-native-web',
         'lucide-react-native': 'lucide-react',
         'expo-router': path.resolve(__dirname, './src/mocks/expo-router.ts'),
+        'expo-constants': path.resolve(__dirname, './src/mocks/expo-constants.ts'),
         'expo-secure-store': path.resolve(__dirname, './src/mocks/secure-store.ts'),
         'expo-notifications': path.resolve(__dirname, './src/mocks/expo-notifications.ts'),
         '@react-native-community/datetimepicker': path.resolve(__dirname, './src/mocks/datetimepicker.tsx'),

@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import type {
   Goal,
   Notification,
@@ -158,7 +159,10 @@ interface RequestOptions extends RequestInit {
   token?: string | null;
 }
 
-const BASE_URL = resolveBaseUrl();
+const API_BASE_URL = resolveBaseUrl();
+const REQUEST_TIMEOUT_MS = 10_000;
+
+console.log('API_BASE_URL:', API_BASE_URL);
 
 export class ApiError extends Error {
   constructor(
@@ -171,6 +175,12 @@ export class ApiError extends Error {
 }
 
 export class UnauthorizedError extends ApiError {}
+
+export async function testConnection() {
+  const response = await request<{ status: string }>('/health');
+  console.log('Health response:', response);
+  return response;
+}
 
 export async function loginRequest(email: string, password: string) {
   const response = await request<{ accessToken: string; user: ApiUser }>('/auth/login', {
@@ -327,10 +337,26 @@ async function request<T>(path: string, options: RequestOptions = {}) {
     headers.set('Authorization', `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const url = `${API_BASE_URL}${path}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+
+  try {
+    console.log('Request URL:', url);
+    response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    console.log('Response status:', response.status);
+  } catch (error) {
+    console.log('NETWORK ERROR:', error);
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const text = await response.text();
   const data = text ? safeJsonParse(text) : null;
@@ -433,11 +459,49 @@ function safeJsonParse(value: string) {
 }
 
 function resolveBaseUrl() {
-  const processEnv = typeof process !== 'undefined'
-    ? process.env?.EXPO_PUBLIC_API_URL
-      ?? process.env?.EXPO_PUBLIC_API_BASE_URL
-      ?? process.env?.VITE_API_BASE_URL
-    : undefined;
+  const apiBaseUrl =
+    Constants.expoConfig?.extra?.apiUrl ||
+    process.env?.EXPO_PUBLIC_API_URL ||
+    process.env?.EXPO_PUBLIC_API_BASE_URL ||
+    process.env?.VITE_API_BASE_URL;
 
-  return (processEnv ?? 'http://localhost:3001').replace(/\/$/, '');
+  if (!apiBaseUrl) {
+    throw new Error('API_BASE_URL is undefined');
+  }
+
+  const normalizedApiBaseUrl = String(apiBaseUrl).replace(/\/$/, '');
+  validateApiBaseUrl(normalizedApiBaseUrl);
+
+  return normalizedApiBaseUrl;
+}
+
+function validateApiBaseUrl(apiBaseUrl: string) {
+  const isDevRuntime =
+    typeof globalThis !== 'undefined' &&
+    '__DEV__' in globalThis &&
+    Boolean((globalThis as { __DEV__?: boolean }).__DEV__);
+
+  if (isDevRuntime) {
+    return;
+  }
+
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(apiBaseUrl);
+  } catch {
+    throw new Error(`API_BASE_URL is invalid: ${apiBaseUrl}`);
+  }
+
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error(`API_BASE_URL must use https in production: ${apiBaseUrl}`);
+  }
+
+  if (parsedUrl.hostname === 'localhost') {
+    throw new Error(`API_BASE_URL must not use localhost in production: ${apiBaseUrl}`);
+  }
+
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(parsedUrl.hostname)) {
+    throw new Error(`API_BASE_URL must not use a raw IP address in production: ${apiBaseUrl}`);
+  }
 }

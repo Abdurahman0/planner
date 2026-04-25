@@ -36,7 +36,7 @@ export default function AuthScreen() {
 
   useEffect(() => {
     if (user) {
-      router.replace('/(tabs)/dashboard');
+      router.replace('/(tabs)');
     }
   }, [router, user]);
 
@@ -53,7 +53,7 @@ export default function AuthScreen() {
         await register(data.email, data.password);
       }
 
-      router.replace('/(tabs)/dashboard');
+      router.replace('/(tabs)');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Authentication failed';
       Alert.alert('Authentication Failed', message);
