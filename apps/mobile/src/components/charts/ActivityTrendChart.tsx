@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Task, TaskStatus } from '@packages/shared';
 
 interface ActivityTrendChartProps {
@@ -8,55 +7,48 @@ interface ActivityTrendChartProps {
 }
 
 export const ActivityTrendChart: React.FC<ActivityTrendChartProps> = ({ tasks }) => {
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return d.toDateString();
-  });
+  const data = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
 
-  const data = last7Days.map(dateStr => {
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+
     const completedCount = tasks.filter(
-      t => new Date(t.plannedDate).toDateString() === dateStr && t.status === TaskStatus.DONE
+      (task) =>
+        task.plannedDate >= date &&
+        task.plannedDate < nextDate &&
+        task.status === TaskStatus.DONE,
     ).length;
-    
+
     return {
-      name: new Date(dateStr).toLocaleDateString('default', { weekday: 'short' }),
-      completed: completedCount,
+      label: date.toLocaleDateString('default', { weekday: 'short' }),
+      completedCount,
     };
   });
+
+  const maxCompletedCount = Math.max(1, ...data.map((point) => point.completedCount));
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Weekly Activity Trend</Text>
-      <View style={styles.chartContainer}>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-            <XAxis 
-              dataKey="name" 
-              axisLine={false} 
-              tickLine={false} 
-              tick={{ fill: '#666', fontSize: 10 }} 
-            />
-            <YAxis 
-              axisLine={false} 
-              tickLine={false} 
-              tick={{ fill: '#666', fontSize: 10 }}
-              allowDecimals={false}
-            />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: 8 }}
-              itemStyle={{ color: '#10B981' }}
-            />
-            <Line 
-              type="stepAfter" 
-              dataKey="completed" 
-              stroke="#10B981" 
-              strokeWidth={3} 
-              dot={{ r: 4, fill: '#10B981', strokeWidth: 2, stroke: '#000' }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+
+      <View style={styles.rows}>
+        {data.map((point) => (
+          <View key={point.label} style={styles.row}>
+            <Text style={styles.label}>{point.label}</Text>
+            <View style={styles.track}>
+              <View
+                style={[
+                  styles.fill,
+                  { width: `${(point.completedCount / maxCompletedCount) * 100}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.value}>{point.completedCount}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -77,8 +69,38 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 20,
   },
-  chartContainer: {
-    height: 200,
-    width: '100%',
+  rows: {
+    gap: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  label: {
+    width: 32,
+    color: '#888',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  track: {
+    flex: 1,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#1C1C1C',
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    minWidth: 6,
+    borderRadius: 999,
+    backgroundColor: '#10B981',
+  },
+  value: {
+    width: 18,
+    textAlign: 'right',
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

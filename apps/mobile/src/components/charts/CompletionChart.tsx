@@ -1,69 +1,63 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Task, TaskStatus } from '@packages/shared';
 
 interface CompletionChartProps {
   tasks: Task[];
 }
 
-export const CompletionChart: React.FC<CompletionChartProps> = ({ tasks }) => {
-  const last14Days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (13 - i));
-    return d.toDateString();
-  });
+type CompletionPoint = {
+  label: string;
+  percentage: number;
+};
 
-  const data = last14Days.map(dateStr => {
-    const dayTasks = tasks.filter(t => new Date(t.plannedDate).toDateString() === dateStr);
-    const completed = dayTasks.filter(t => t.status === TaskStatus.DONE).length;
-    const total = dayTasks.length;
-    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-    
-    return {
-      name: new Date(dateStr).toLocaleDateString('default', { weekday: 'short' }),
-      percentage,
-    };
-  });
+export const CompletionChart: React.FC<CompletionChartProps> = ({ tasks }) => {
+  const data = buildCompletionData(tasks);
+  const averageCompletion = data.length > 0
+    ? Math.round(data.reduce((total, point) => total + point.percentage, 0) / data.length)
+    : 0;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Completion Trend</Text>
-      <View style={styles.chartContainer}>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-            <XAxis 
-              dataKey="name" 
-              axisLine={false} 
-              tickLine={false} 
-              tick={{ fill: '#666', fontSize: 10 }} 
-            />
-            <YAxis 
-              axisLine={false} 
-              tickLine={false} 
-              tick={{ fill: '#666', fontSize: 10 }}
-              domain={[0, 100]}
-              ticks={[0, 50, 100]}
-            />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: 8 }}
-              itemStyle={{ color: '#A855F7' }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="percentage" 
-              stroke="#A855F7" 
-              strokeWidth={3} 
-              dot={{ r: 4, fill: '#A855F7', strokeWidth: 2, stroke: '#000' }}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <View style={styles.header}>
+        <Text style={styles.title}>Completion Trend</Text>
+        <Text style={styles.summary}>{averageCompletion}% avg</Text>
+      </View>
+
+      <View style={styles.chart}>
+        {data.map((point) => (
+          <View key={point.label} style={styles.barColumn}>
+            <Text style={styles.barValue}>{point.percentage}%</Text>
+            <View style={styles.track}>
+              <View style={[styles.fill, { height: `${Math.max(point.percentage, 4)}%` }]} />
+            </View>
+            <Text style={styles.label}>{point.label}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
 };
+
+function buildCompletionData(tasks: Task[]): CompletionPoint[] {
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const dayTasks = tasks.filter((task) => task.plannedDate >= date && task.plannedDate < nextDate);
+    const completedTasks = dayTasks.filter((task) => task.status === TaskStatus.DONE).length;
+    const percentage = dayTasks.length > 0 ? Math.round((completedTasks / dayTasks.length) * 100) : 0;
+
+    return {
+      label: date.toLocaleDateString('default', { weekday: 'short' }),
+      percentage,
+    };
+  });
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -74,14 +68,57 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#222',
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   title: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 20,
   },
-  chartContainer: {
-    height: 200,
+  summary: {
+    color: '#A855F7',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  chart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 10,
+    minHeight: 190,
+  },
+  barColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  barValue: {
+    color: '#666',
+    fontSize: 10,
+    marginBottom: 8,
+  },
+  track: {
     width: '100%',
+    maxWidth: 28,
+    height: 120,
+    borderRadius: 14,
+    backgroundColor: '#1C1C1C',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  fill: {
+    width: '100%',
+    backgroundColor: '#A855F7',
+    borderRadius: 14,
+    minHeight: 4,
+  },
+  label: {
+    color: '#888',
+    fontSize: 10,
+    fontWeight: '500',
   },
 });
