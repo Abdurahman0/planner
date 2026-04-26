@@ -1,5 +1,6 @@
 import { Alert, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store/useStore';
 import { GoalCard } from '../../src/components/GoalCard';
 import { ProgressWidget } from '../../src/components/ProgressWidget';
@@ -8,6 +9,7 @@ import { TaskStatus } from '@packages/shared';
 import { CompletionChart } from '../../src/components/charts/CompletionChart';
 
 export default function Dashboard() {
+  const insets = useSafeAreaInsets();
   const goals = useStore((state) => state.goals);
   const tasks = useStore((state) => state.tasks);
   const notificationSummary = useStore((state) => state.notificationSummary);
@@ -44,7 +46,10 @@ export default function Dashboard() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+    >
       <View style={styles.innerContainer}>
         <View style={styles.header}>
           <Text style={styles.greeting}>Today</Text>
@@ -98,7 +103,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: 'center',
-    paddingBottom: 40,
   },
   innerContainer: {
     width: '100%',

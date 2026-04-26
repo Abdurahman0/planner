@@ -1,11 +1,13 @@
 import { Alert, View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store/useStore';
 import { GoalCard } from '../../src/components/GoalCard';
 import { Plus } from 'lucide-react-native';
 
 export default function GoalsScreen() {
+  const insets = useSafeAreaInsets();
   const goals = useStore((state) => state.goals);
   const isLoading = useStore((state) => state.isLoading);
   const fetchGoals = useStore((state) => state.fetchGoals);
@@ -39,7 +41,7 @@ export default function GoalsScreen() {
           data={goals}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <GoalCard goal={item} />}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>{isLoading ? 'Loading goals...' : 'No goals yet. Start by creating one!'}</Text>

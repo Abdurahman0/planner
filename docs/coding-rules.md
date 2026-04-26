@@ -3,54 +3,58 @@
 ## Core Rules
 
 - backend is the source of truth
-- do not trust frontend state for business decisions
-- no business logic in UI
-- no direct DB access from frontend
-- always enforce ownership and security in backend
-- AI must not handle core logic
+- never trust client input
+- frontend must not own business rules
+- do not move planner logic into AI
+- do not access the database directly from frontend
+
+## React Native Rules
+
+- no web-only components in native app code
+- no Recharts in native app code
+- use `react-native-safe-area-context` correctly
+- keep Android system UI dark and safe-area aware
+- auth screens must remain keyboard-safe on Android and iOS
+- password visibility toggles must stay UI-only
+- use Expo notification channels explicitly on Android
+- notification tap routing must target existing app routes only
 
 ## Backend Rules
 
-- all user-owned endpoints must require authentication
-- all user-owned resources must enforce ownership checks
-- prefer `404` for non-owned resources where practical
-- use DTO validation on request input
-- never expose `passwordHash`
-- never trust client-provided premium flags
-- never trust client `userId` for owned resources
-- premium and quota enforcement must happen in backend
-- planner and deadline logic must live in backend domain logic
-
-## Frontend Rules
-
-- frontend should consume APIs, not act as source of truth
-- mock Zustand data is temporary and must not define final business behavior
-- no premium enforcement only in frontend
-- no AI logic embedded in UI screens
+- protect user-owned routes with JWT
+- enforce ownership on every user-owned resource
+- validate request DTOs
+- do not accept client-controlled `userId`
+- keep payment confirmation webhook-driven
+- keep quota and subscription checks in backend
+- keep push device registration JWT-protected
+- keep push payloads free of secrets and private account data
 
 ## AI Rules
 
 - AI only generates or replans structured plans
 - AI is not chat
-- AI must not decide auth, ownership, pricing, or deadline truth
 - AI output must be validated before persistence
+- AI must not bypass business rules or ownership checks
 
-## Database Rules
+## Mobile Build Rules
 
-- Prisma schema and shared types must stay aligned
-- do not add stringly-typed business fields when enums are appropriate
-- relations must reflect real ownership and planner flows
+- Expo project root is repo root
+- use EAS environment variables for APK builds
+- `EXPO_PUBLIC_API_URL` must be set correctly for preview/production builds
+- Expo notifications in APK builds must use the configured EAS project ID
 
-## Security Rules
+## Secrets Rules
 
-- hash passwords
-- sign JWTs with env-based secret
-- keep secrets out of code
-- avoid user enumeration in auth flows
-- expose only safe response fields
+- never commit real secrets
+- do not document real private credentials in `/docs`
+- use `.env.example` for required variables only
+- never persist plain-text passwords client-side or server-side
 
 ## Documentation Rules
 
-- `/docs` must stay aligned with real implementation state
-- implemented vs planned must always be explicit
-- do not document placeholder code as working product behavior
+- update `/docs` after every meaningful feature change
+- mark implemented vs planned vs limitation explicitly
+- remove stale roadmap/status claims
+- do not describe mock or partial behavior as complete
+- major changes should update docs before or immediately after code lands

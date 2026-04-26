@@ -1,5 +1,7 @@
 import Constants from 'expo-constants';
 import type {
+  AvailabilitySlot,
+  AvailabilityType,
   Goal,
   Notification,
   NotificationStatus,
@@ -72,6 +74,22 @@ export interface RegisterDeviceInput {
   platform: 'ios' | 'android' | 'expo';
 }
 
+export interface CreateAvailabilityInput {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  type: AvailabilityType;
+  label?: string;
+}
+
+export interface UpdateAvailabilityInput {
+  dayOfWeek?: number;
+  startTime?: string;
+  endTime?: string;
+  type?: AvailabilityType;
+  label?: string | null;
+}
+
 interface ApiGoal {
   id: string;
   userId: string;
@@ -119,6 +137,18 @@ interface ApiProgressLog {
   completedValue?: number | null;
   note?: string | null;
   loggedAt: string;
+}
+
+interface ApiAvailabilitySlot {
+  id: string;
+  userId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  type: AvailabilityType;
+  label?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ApiUser {
@@ -303,6 +333,38 @@ export async function fetchNotificationsRequest(token: string) {
   return response.map(normalizeNotification);
 }
 
+export async function fetchAvailabilityRequest(token: string) {
+  const response = await request<ApiAvailabilitySlot[]>('/availability', { token });
+  return response.map(normalizeAvailabilitySlot);
+}
+
+export async function createAvailabilityRequest(token: string, input: CreateAvailabilityInput) {
+  const response = await request<ApiAvailabilitySlot>('/availability', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(input),
+  });
+
+  return normalizeAvailabilitySlot(response);
+}
+
+export async function updateAvailabilityRequest(token: string, slotId: string, input: UpdateAvailabilityInput) {
+  const response = await request<ApiAvailabilitySlot>(`/availability/${slotId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(input),
+  });
+
+  return normalizeAvailabilitySlot(response);
+}
+
+export async function deleteAvailabilityRequest(token: string, slotId: string) {
+  await request(`/availability/${slotId}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 export async function fetchNotificationSummaryRequest(token: string) {
   const response = await request<ApiNotificationSummary>('/notifications/summary', { token });
   return response;
@@ -431,6 +493,15 @@ function normalizeNotification(notification: ApiNotification): Notification {
     readAt: notification.readAt ? new Date(notification.readAt) : undefined,
     createdAt: new Date(notification.createdAt),
     updatedAt: notification.updatedAt ? new Date(notification.updatedAt) : undefined,
+  };
+}
+
+function normalizeAvailabilitySlot(slot: ApiAvailabilitySlot): AvailabilitySlot {
+  return {
+    ...slot,
+    label: slot.label ?? undefined,
+    createdAt: new Date(slot.createdAt),
+    updatedAt: new Date(slot.updatedAt),
   };
 }
 

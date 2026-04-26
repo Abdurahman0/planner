@@ -1,54 +1,116 @@
 # AI Planner Docs
 
-## Project Overview
+## Overview
 
-AI Planner is a planner product with:
+AI Planner is a mobile-first planner application with:
 
-- manual goals and tasks
-- premium AI-managed goals with strict limits
-- future planner scheduling logic
-- future analytics and AI plan generation/replan flows
+- real auth
+- real goals and tasks APIs
+- planner scheduling with availability blocks
+- deadline projection from real progress logs
+- AI plan generation and replanning
+- payment backend for premium upgrades
+- notification and retention backend
 
-Current maturity:
+This is not a launched product. It is a **working production-style foundation plus active mobile QA/polish work**.
 
-- backend foundation exists
-- auth is real
-- goals API is real
-- tasks API is real
-- TaskProgressLog writes are real
-- deadline movement is real
-- AI planning endpoints are real
-- payment backend is real
-- frontend is connected for auth/goals/tasks
-- notifications are not implemented yet
+## Current Maturity
 
-## Current Real State
+Current maturity level:
 
-Implemented:
+- backend: strong functional foundation
+- database: real and migrated
+- mobile app: backend-connected and buildable
+- planner UX: functional, still being polished
+- production launch readiness: not complete yet
 
-- Prisma schema alignment
-- database migration
-- database seed
-- NestJS bootstrap
-- `GET /health`
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /users/me`
-- JWT-protected Goals API
-- JWT-protected Tasks API
-- TaskProgressLog writes on `PATCH /tasks/:id/status`
-- projected deadline movement logic
-- `POST /ai/generate-plan`
-- `POST /ai/replan`
-- `POST /payments/initiate`
-- `POST /payments/webhook`
-- frontend auth/goals/tasks integration
+## Implemented
 
-Not implemented yet:
+- Prisma schema and migrations
+- PostgreSQL/Neon integration
+- backend bootstrap and health endpoint
+- secure auth: register, login, JWT, `GET /users/me`
+- goals API with ownership checks and premium AI-goal rules
+- tasks API with status updates and `TaskProgressLog` writes
+- projected deadline recalculation from real progress
+- availability API and planner scheduling layer
+- AI backend: generate plan, replan, quota checks, usage logging
+- payments backend: Click, Payme, webhook-driven upgrades
+- notifications backend: reminders, missed-task alerts, streaks, device registration
+- mobile auth/goals/tasks/availability/notifications integration
+- Android-safe-area and system navigation fixes
+- Expo/EAS build configuration at repo root
 
-- notifications
-- frontend AI integration
-- frontend payments integration
+## Still Unfinished
+
+- real-device QA across Android flows
+- frontend AI entry flow
+- frontend billing/payment UX
+- push notification production validation
+- deeper AI use of saved availability
+- drag-and-drop or resize-based planner interactions
+
+## Run Backend
+
+Run from the repo root:
+
+```bash
+npm run backend:dev
+```
+
+Health check:
+
+```text
+http://localhost:3001/health
+```
+
+Expected response:
+
+```json
+{ "status": "ok" }
+```
+
+## Run Mobile App
+
+Expo project root is the **repo root**, not `apps/mobile`.
+
+Run from the repo root:
+
+```bash
+npm install
+npm run mobile:start
+```
+
+Or:
+
+```bash
+npx expo start --lan --clear
+```
+
+## Build Mobile App
+
+Run from the repo root:
+
+```bash
+npx eas build -p android --profile preview
+```
+
+`preview` currently builds an installable APK.
+
+## API URL Configuration
+
+For local mobile testing:
+
+- set `EXPO_PUBLIC_API_URL` in the repo-root `.env`
+- use a reachable backend URL
+
+Example current production/deployment URL in this repo:
+
+```env
+EXPO_PUBLIC_API_URL="https://planner-v79c.onrender.com"
+```
+
+For EAS preview builds, `EXPO_PUBLIC_API_URL` must be set in the EAS environment so the APK resolves the backend correctly.
 
 ## Quick Links
 
@@ -62,83 +124,3 @@ Not implemented yet:
 - [pricing.md](./pricing.md)
 - [roadmap.md](./roadmap.md)
 - [coding-rules.md](./coding-rules.md)
-
-## Start Backend
-
-Required env vars:
-
-- `DATABASE_URL`
-- `JWT_SECRET`
-- optional `JWT_EXPIRES_IN`
-- optional `BACKEND_PORT` default `3001`
-- payment and AI env vars are required for those modules
-
-Run:
-
-```bash
-npm run backend:dev
-```
-
-Health check:
-
-```text
-GET http://localhost:3001/health
-```
-
-Expected response:
-
-```json
-{ "status": "ok" }
-```
-
-## Test Auth
-
-Register:
-
-```bash
-curl -X POST http://localhost:3001/auth/register \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"user@example.com\",\"password\":\"StrongPass123\"}"
-```
-
-Login:
-
-```bash
-curl -X POST http://localhost:3001/auth/login \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"user@example.com\",\"password\":\"StrongPass123\"}"
-```
-
-Current user:
-
-```bash
-curl http://localhost:3001/users/me \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-Create manual goal:
-
-```bash
-curl -X POST http://localhost:3001/goals \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"title\":\"Launch MVP\",\"type\":\"manual\",\"targetDate\":\"2026-06-01T00:00:00.000Z\",\"priority\":\"high\"}"
-```
-
-Create task:
-
-```bash
-curl -X POST http://localhost:3001/tasks \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"goalId\":\"GOAL_UUID\",\"title\":\"Deep Work Block\",\"type\":\"time_based\",\"plannedDate\":\"2026-05-01T00:00:00.000Z\",\"startTime\":\"09:00\",\"endTime\":\"10:30\",\"estimatedMinutes\":90}"
-```
-
-Update task status:
-
-```bash
-curl -X PATCH http://localhost:3001/tasks/TASK_UUID/status \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"status\":\"partial\",\"completionPercent\":40,\"completedValue\":4,\"note\":\"Progress update\"}"
-```

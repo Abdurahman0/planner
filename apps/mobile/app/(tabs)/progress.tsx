@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store/useStore';
 import { CompletionChart } from '../../src/components/charts/CompletionChart';
 import { StatusBreakdownChart } from '../../src/components/charts/StatusBreakdownChart';
@@ -9,6 +10,7 @@ import { ActivityTrendChart } from '../../src/components/charts/ActivityTrendCha
 import { StreakWidget } from '../../src/components/charts/StreakWidget';
 
 export default function ProgressScreen() {
+  const insets = useSafeAreaInsets();
   const tasks = useStore((state) => state.tasks);
   const goals = useStore((state) => state.goals);
   const notificationSummary = useStore((state) => state.notificationSummary);
@@ -21,7 +23,10 @@ export default function ProgressScreen() {
   }, [fetchGoals, fetchNotificationSummary, fetchTasks]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+    >
       <View style={styles.innerContainer}>
         <View style={styles.header}>
           <Text style={styles.title}>Analytics</Text>
@@ -54,7 +59,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: 'center',
-    paddingBottom: 40,
   },
   innerContainer: {
     width: '100%',

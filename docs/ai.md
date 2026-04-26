@@ -1,164 +1,127 @@
 # AI
 
-## Current Status
+## Status
 
-AI planning is now implemented behind explicit backend endpoints.
+AI planning is implemented on the backend.
 
-Implemented:
+Implemented endpoints:
 
 - `POST /ai/generate-plan`
 - `POST /ai/replan`
-- JWT protection
-- premium-only access
-- daily AI usage limits
-- strict JSON schema enforcement
-- `AiUsageLog` writes
 
-Still not implemented:
+Not implemented:
 
-- frontend AI integration
-- payments-backed entitlement sync
-- AI chat
+- frontend AI entry flow
+- deep schedule-aware generation using saved availability blocks
 
 ## Product Rules
 
-AI may only be used for:
+AI is only for:
 
 - initial plan generation
-- explicit manual replanning
+- explicit replanning
 
-AI must not be used for:
+AI is not for:
 
 - chat
-- automatic user coaching in every flow
-- core planner logic
-- auth
-- deadline projection
-- premium enforcement
-- task ownership/security decisions
+- continuous coaching
+- ownership/security decisions
+- deadline truth
+- subscription truth
 
-## Implemented Input Shape
+## Current Behavior
 
 ### Generate Plan
 
-`POST /ai/generate-plan`
-
 Input:
 
-- `title`
-- optional `description`
-- `targetDate`
-- optional `priority`
-- optional `availability[]`
+- title
+- optional description
+- target date
+- optional priority
+- optional availability array
 
 Behavior:
 
-- backend calls Gemini
-- validates JSON response
-- creates a new AI-managed goal
-- creates AI-sourced tasks through `TasksService`
+- backend verifies auth and premium access
+- backend checks daily quota
+- backend sends a JSON-only prompt to Gemini
+- backend validates the returned task structure
+- backend creates the AI-managed goal and tasks through backend services
+- backend logs AI usage
 
 ### Replan
 
-`POST /ai/replan`
-
 Input:
 
-- `goalId`
-- optional `currentProgress` note
+- goalId
+- optional current progress note
 
 Behavior:
 
-- backend loads owned goal and its real task/progress data
-- backend calls Gemini
-- validates JSON response
-- deletes incomplete AI-generated tasks for the goal
-- creates replacement AI tasks through `TasksService`
+- backend verifies ownership
+- backend verifies AI-managed goal type
+- backend checks premium access and quota
+- backend loads current task/progress state
+- backend validates AI output
+- backend replaces incomplete AI-generated tasks
+- backend logs usage
 
-## Output Shape
+## Validation Rules
 
-AI provider contract:
+Implemented:
 
-- tasks
-- JSON only
-- no explanations
-- no markdown
-- no extra keys
+- strict JSON-only output expectation
+- schema validation
+- task count bounds
+- time validation
+- date validation
+- type-specific validation for time-based vs unit-based tasks
 
-Task fields:
+AI output is never trusted blindly.
 
-- `title`
-- optional `description`
-- `type`
-- `plannedDate`
-- optional `startTime`
-- optional `endTime`
-- optional `estimatedMinutes`
-- optional `targetValue`
-- optional `targetUnit`
+## Quota Rules
 
-No conversational free-form output should be used as the product contract.
+Current daily limits:
 
-## Usage Logging
+- `free`: `0`
+- `ai_basic`: `20`
+- `ai_pro`: `100`
 
-The schema already includes `AiUsageLog` with fields for:
+## Logging
+
+`AiUsageLog` is written for:
+
+- successful calls
+- failed calls
+
+Tracked fields include:
 
 - user
 - optional goal
 - action type
 - model
-- token counts
-- estimated cost
+- token counts when available
 - success/failure
 - error message
 
-Current status:
+## Provider and Env
 
-- schema support exists
-- real `AiUsageLog` writes are implemented
+Current provider path:
 
-Logged fields:
+- Gemini via `@google/genai`
 
-- `userId`
-- optional `goalId`
-- `actionType`
-- `model`
-- token counts when returned by provider
-- success/failure
-- error message on failure
+Relevant env vars:
 
-## Validation Rules
+- `GEMINI_API_KEY`
+- optional `AI_MODEL`
 
-Backend validation is strict:
+## Current Limitations
 
-- AI output must be valid JSON
-- AI output must match backend task schema
-- tasks must be between 3 and 12 items
-- `plannedDate` cannot be in the past
-- `plannedDate` cannot exceed goal `targetDate`
-- `startTime` and `endTime` must be paired
-- `endTime` must be later than `startTime`
-- `time_based` tasks require `estimatedMinutes`
-- `unit_based` tasks require `targetValue` and `targetUnit`
+- frontend does not yet expose the AI flow cleanly
+- saved availability blocks are not yet used deeply enough to produce planner-quality schedules
+- AI is still constrained to backend-only flows, which is correct, but mobile UX integration is incomplete
 
-Invalid AI output is rejected and not trusted.
+## Next Improvement
 
-## AI Limits
-
-Current backend limits:
-
-- `free`: no AI access
-- `ai_basic`: 20 AI requests per UTC day
-- `ai_pro`: 100 AI requests per UTC day
-
-## Rule
-
-AI remains constrained behind explicit backend APIs.
-
-AI does not:
-
-- write directly to DB
-- bypass ownership checks
-- bypass subscription checks
-- control deadline logic
-- behave like a chat assistant
+Use saved availability blocks more deeply during plan generation and replanning so AI output respects the real planner schedule.

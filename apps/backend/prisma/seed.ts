@@ -82,6 +82,7 @@ async function main() {
         startTime: '09:00',
         endTime: '17:00',
         type: AvailabilityType.WORK,
+        label: 'Work',
       },
       {
         userId: user.id,
@@ -89,6 +90,7 @@ async function main() {
         startTime: '09:00',
         endTime: '17:00',
         type: AvailabilityType.WORK,
+        label: 'Work',
       },
     ],
   });

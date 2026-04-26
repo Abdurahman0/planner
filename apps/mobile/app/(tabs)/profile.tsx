@@ -1,12 +1,14 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store/useStore';
 import { SubscriptionPlan } from '@packages/shared';
 import { Crown, Settings, LogOut, ChevronRight } from 'lucide-react-native';
 import { NotificationsPanel } from '../../src/components/NotificationsPanel';
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const user = useStore((state) => state.user);
   const notifications = useStore((state) => state.notifications);
   const notificationSummary = useStore((state) => state.notificationSummary);
@@ -27,7 +29,10 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+    >
       <View style={styles.innerContainer}>
         <View style={styles.header}>
           <View style={styles.avatar}>
@@ -86,7 +91,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: 'center',
-    paddingBottom: 40,
   },
   innerContainer: {
     width: '100%',

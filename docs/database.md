@@ -1,51 +1,91 @@
 # Database
 
-## Current Status
+## Overview
 
-Database foundation is in place.
+The app uses Prisma with PostgreSQL.
 
-Current real state:
+Current repo/environment indicates:
 
-- PostgreSQL database used through Prisma
-- schema aligned with shared domain types
-- migration executed
-- seed executed successfully
-- payment transaction model added and migrated
-
-Seed currently creates:
-
-- a user
-- an AI goal
-- a current plan
-- seeded tasks
-- seeded availability slots
+- PostgreSQL on Neon
+- migrations applied
+- seed runnable and aligned with current schema
 
 ## Core Models
 
 ### User
 
-Fields include:
+Purpose:
 
-- `id`
-- `email`
-- `passwordHash`
-- `subscriptionPlan`
-- timestamps
+- identity
+- auth ownership root
+- subscription plan root
 
-Relations:
+Key relations:
 
-- goals
-- subscriptions
-- payment transactions
-- availability slots
-- task progress logs
-- AI usage logs
-- notifications
-- devices
+- `goals`
+- `devices`
+- `subscriptions`
+- `availabilitySlots`
+- `taskProgressLogs`
+- `aiUsageLogs`
+- `paymentTransactions`
+- `notifications`
+- `referrals`
+- `auditLogs`
+
+### UserDevice
+
+Purpose:
+
+- stores push notification device tokens
+
+Key fields:
+
+- `token`
+- `platform`
+
+### Subscription
+
+Purpose:
+
+- stores subscription periods and status
+
+Key fields:
+
+- `planType`
+- `status`
+- `paymentId`
+- `startDate`
+- `endDate`
+
+### PaymentTransaction
+
+Purpose:
+
+- durable record for payment initiation and webhook processing
+
+Key fields:
+
+- `userId`
+- `planType`
+- `provider`
+- `status`
+- `amountMinor`
+- `currency`
+- `localReference`
+- `externalId`
+- `providerPayload`
+- `errorMessage`
+- `webhookAttempts`
+- `processedAt`
 
 ### Goal
 
-Fields include:
+Purpose:
+
+- high-level planning container
+
+Key fields:
 
 - `type`
 - `priority`
@@ -56,168 +96,194 @@ Fields include:
 
 Relations:
 
-- user
-- plans
-- tasks
-- AI usage logs
+- `user`
+- `plans`
+- `tasks`
+- `aiUsageLogs`
 
 ### Plan
 
-Fields include:
+Purpose:
+
+- versioned plan record for a goal
+
+Key fields:
 
 - `goalId`
 - `version`
 - `isCurrent`
-- `createdAt`
 
 Relations:
 
-- goal
-- milestones
-- tasks
+- `goal`
+- `milestones`
+- `tasks`
 
 ### Milestone
 
-Fields include:
+Purpose:
+
+- optional intermediate plan structure
+
+Key fields:
 
 - `planId`
 - `title`
 - `description`
 - `order`
-- optional `targetDate`
-
-Relations:
-
-- plan
-- tasks
+- `targetDate`
 
 ### Task
 
-Fields include:
+Purpose:
+
+- executable work item under a goal
+
+Key fields:
 
 - `goalId`
-- optional `planId`
-- optional `milestoneId`
+- `planId`
+- `milestoneId`
 - `title`
 - `description`
 - `status`
 - `type`
 - `plannedDate`
-- optional `startTime`
-- optional `endTime`
-- optional `estimatedMinutes`
-- optional `targetValue`
-- optional `completedValue`
-- optional `targetUnit`
+- `startTime`
+- `endTime`
+- `estimatedMinutes`
+- `targetValue`
+- `completedValue`
+- `targetUnit`
 - `source`
 - `order`
 
-Relations:
+Scheduled task fields:
 
-- goal
-- optional plan
-- optional milestone
-- progress logs
+- `plannedDate`
+- optional `startTime`
+- optional `endTime`
+
+This is the current scheduling foundation used by the planner UI.
 
 ### TaskProgressLog
 
-Fields include:
+Purpose:
+
+- immutable progress history per task status/progress event
+
+Key fields:
 
 - `userId`
 - `taskId`
 - `status`
-- optional `completionPercent`
-- optional `completedValue`
-- optional `note`
+- `completionPercent`
+- `completedValue`
+- `note`
 - `loggedAt`
 
-Current usage:
-
-- written on every task status update
-- used by backend deadline recalculation
+This model drives projected deadline recalculation and retention metrics.
 
 ### AvailabilitySlot
 
-Fields include:
+Purpose:
+
+- persistent weekly routine/schedule blocks
+
+Key fields:
 
 - `userId`
 - `dayOfWeek`
 - `startTime`
 - `endTime`
 - `type`
+- `label`
 
-This is the persistent foundation for planner availability.
-
-### PaymentTransaction
-
-Fields include:
-
-- `userId`
-- `planType`
-- `provider`
-- `status`
-- `amountMinor`
-- `currency`
-- `localReference`
-- optional `externalId`
-- optional `providerPayload`
-- optional `errorMessage`
-- `webhookAttempts`
-- `initiatedAt`
-- optional `paidAt`
-- optional `processedAt`
-- optional `cancelledAt`
-- optional `expiresAt`
-- optional `lastWebhookAt`
+### AiUsageLog
 
 Purpose:
 
-- stores every initiated payment attempt
-- gives the backend an idempotency anchor for repeated webhooks
-- keeps provider transaction state separate from frontend state
+- track AI calls and quota usage
 
-## Supporting Models
+Key fields:
 
-- `Subscription`
-- `UserDevice`
-- `AiUsageLog`
-- `Notification`
-- `Referral`
-- `AdminAuditLog`
+- `userId`
+- `goalId`
+- `actionType`
+- `model`
+- `inputTokens`
+- `outputTokens`
+- `estimatedCost`
+- `success`
+- `errorMessage`
 
-Live usage today:
+### Notification
 
-- `Subscription` is updated when verified payment webhooks succeed
-- `PaymentTransaction` is used in live payment flows
+Purpose:
 
-Other supporting models above are mostly not used in live product flows yet.
+- user-specific in-app notification storage
 
-## Key Date Semantics
+Key fields:
 
-### targetDate
+- `userId`
+- `title`
+- `body`
+- `type`
+- `status`
+- `dedupeKey`
+- `metadata`
+- `readAt`
 
-- the user's intended goal deadline
+### Referral
 
-### projectedDate
+Purpose:
 
-- the system's calculated expected completion date
-- moves based on actual progress vs planned workload
+- placeholder foundation for referral/growth flows
 
-Current note:
+### AdminAuditLog
 
-- the field exists
-- deadline movement logic is implemented in backend task status flows
+Purpose:
 
-## Important Relations
+- placeholder foundation for admin audit activity
+
+## Important Relationships
 
 ```text
-User -> Goal -> Plan -> Milestone
 User -> Goal -> Task
+User -> Goal -> Plan -> Milestone
 Plan -> Task
 Milestone -> Task
 Task -> TaskProgressLog
-User -> PaymentTransaction
 User -> AvailabilitySlot
-User -> AiUsageLog
+User -> PaymentTransaction
 User -> Notification
+User -> UserDevice
+User -> AiUsageLog
 ```
+
+## targetDate vs projectedDate
+
+### targetDate
+
+- user-intended deadline
+
+### projectedDate
+
+- backend-calculated expected completion date
+- moves based on actual workload completion vs planned workload
+
+The client does not own `projectedDate`.
+
+## Payment and Notification Data
+
+Payments:
+
+- `PaymentTransaction` is the operational payment record
+- `Subscription` stores the granted subscription state
+- `User.subscriptionPlan` is the current plan shortcut used in auth/app logic
+
+Notifications:
+
+- `Notification` stores user-visible items
+- `UserDevice` stores push targets
+- real push confirmation/receipt processing is still limited

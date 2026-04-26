@@ -63,8 +63,11 @@ export enum TaskSource {
 export enum AvailabilityType {
   SLEEP = 'sleep',
   WORK = 'work',
-  UNAVAILABLE = 'unavailable',
   AVAILABLE = 'available',
+  BLOCKED = 'blocked',
+  EATING = 'eating',
+  STUDY = 'study',
+  CUSTOM = 'custom',
 }
 
 export enum AiActionType {
@@ -134,6 +137,7 @@ export interface AvailabilitySlot {
   dayOfWeek: number; // 0-6
   startTime: string; // HH:mm
   endTime: string; // HH:mm
+  label?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

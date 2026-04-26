@@ -23,6 +23,7 @@ export default defineConfig(({mode}) => {
         'expo-constants': path.resolve(__dirname, './src/mocks/expo-constants.ts'),
         'expo-secure-store': path.resolve(__dirname, './src/mocks/secure-store.ts'),
         'expo-notifications': path.resolve(__dirname, './src/mocks/expo-notifications.ts'),
+        'react-native-safe-area-context': path.resolve(__dirname, './src/mocks/safe-area-context.tsx'),
         '@react-native-community/datetimepicker': path.resolve(__dirname, './src/mocks/datetimepicker.tsx'),
         '@packages/shared': path.resolve(__dirname, './packages/shared/src'),
       },

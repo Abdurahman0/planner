@@ -15,8 +15,11 @@ import {
 import {
   ApiError,
   UnauthorizedError,
+  createAvailabilityRequest,
   createGoalRequest,
   createTaskRequest,
+  deleteAvailabilityRequest,
+  fetchAvailabilityRequest,
   fetchCurrentUser,
   fetchGoal,
   fetchGoals,
@@ -27,10 +30,13 @@ import {
   markNotificationReadRequest,
   registerDeviceRequest,
   registerRequest,
+  updateAvailabilityRequest,
   updateTaskRequest,
   updateTaskStatusRequest,
+  type CreateAvailabilityInput,
   type CreateGoalInput,
   type CreateTaskInput,
+  type UpdateAvailabilityInput,
   type UpdateTaskInput,
   type UpdateTaskStatusInput,
 } from '../lib/api';
@@ -58,6 +64,10 @@ interface AppState {
   createTask: (input: CreateTaskInput) => Promise<Task>;
   updateTask: (taskId: string, input: UpdateTaskInput) => Promise<Task>;
   updateTaskStatus: (taskId: string, input: UpdateTaskStatusInput) => Promise<void>;
+  fetchAvailability: () => Promise<AvailabilitySlot[]>;
+  createAvailability: (input: CreateAvailabilityInput) => Promise<AvailabilitySlot>;
+  updateAvailability: (slotId: string, input: UpdateAvailabilityInput) => Promise<AvailabilitySlot>;
+  deleteAvailability: (slotId: string) => Promise<void>;
   fetchNotifications: () => Promise<Notification[]>;
   fetchNotificationSummary: () => Promise<NotificationSummary>;
   markNotificationRead: (notificationId: string) => Promise<void>;
@@ -288,6 +298,63 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
+  fetchAvailability: async () => {
+    const token = requireToken(get);
+
+    try {
+      const availability = await fetchAvailabilityRequest(token);
+      set({ availability });
+      return availability;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  createAvailability: async (input: CreateAvailabilityInput) => {
+    const token = requireToken(get);
+
+    try {
+      const slot = await createAvailabilityRequest(token, input);
+      set((state) => ({
+        availability: upsertById(state.availability, slot).sort(compareAvailabilitySlots),
+      }));
+      return slot;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  updateAvailability: async (slotId: string, input: UpdateAvailabilityInput) => {
+    const token = requireToken(get);
+
+    try {
+      const slot = await updateAvailabilityRequest(token, slotId, input);
+      set((state) => ({
+        availability: upsertById(state.availability, slot).sort(compareAvailabilitySlots),
+      }));
+      return slot;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
+  deleteAvailability: async (slotId: string) => {
+    const token = requireToken(get);
+
+    try {
+      await deleteAvailabilityRequest(token, slotId);
+      set((state) => ({
+        availability: state.availability.filter((slot) => slot.id !== slotId),
+      }));
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
+
   fetchNotifications: async () => {
     const token = requireToken(get);
 
@@ -341,7 +408,11 @@ async function hydrateAppData(
   token: string,
   set: (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void,
 ) {
-  const [goals, tasks] = await Promise.all([fetchGoals(token), fetchTasks(token)]);
+  const [goals, tasks, availability] = await Promise.all([
+    fetchGoals(token),
+    fetchTasks(token),
+    fetchAvailabilityRequest(token),
+  ]);
   const [notifications, notificationSummary] = await Promise.all([
     fetchNotificationsRequest(token),
     fetchNotificationSummaryRequest(token),
@@ -351,7 +422,7 @@ async function hydrateAppData(
     tasks,
     notifications,
     notificationSummary,
-    availability: [],
+    availability,
   });
 }
 
@@ -428,4 +499,16 @@ function mergeTasksForGoal(existingTasks: Task[], goalId: string, nextTasks: Tas
 
     return left.order - right.order;
   });
+}
+
+function compareAvailabilitySlots(left: AvailabilitySlot, right: AvailabilitySlot) {
+  if (left.dayOfWeek !== right.dayOfWeek) {
+    return left.dayOfWeek - right.dayOfWeek;
+  }
+
+  if (left.startTime !== right.startTime) {
+    return left.startTime.localeCompare(right.startTime);
+  }
+
+  return left.endTime.localeCompare(right.endTime);
 }

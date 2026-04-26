@@ -1,30 +1,37 @@
 # Planner Logic
 
-## Product Meaning
+## Status
 
-The planner is intended to be a scheduling system, not only a task list.
+The planner scheduling layer exists and is functional.
 
-It must eventually support:
+This is no longer just goals plus a task list.
 
-- month view
-- week view
-- day view with hours
-- scheduled tasks
-- unscheduled tasks
-- user availability
-- progress-aware deadline movement
+## Availability API
 
-## Domain Concepts Already Present
+Implemented endpoints:
 
-Current schema/shared foundation already supports:
+- `POST /availability`
+- `GET /availability`
+- `PATCH /availability/:id`
+- `DELETE /availability/:id`
 
-- task type: `time_based` or `unit_based`
-- scheduled task fields: `startTime`, `endTime`
-- estimated task duration: `estimatedMinutes`
-- unit-based targets: `targetValue`, `targetUnit`
-- completed value tracking
-- availability slots
-- plan and milestone structure
+Supported block types:
+
+- `sleep`
+- `eating`
+- `work`
+- `study`
+- `available`
+- `blocked`
+- `custom`
+
+Each block supports:
+
+- `dayOfWeek`
+- `startTime`
+- `endTime`
+- `type`
+- optional `label`
 
 ## Scheduled vs Unscheduled Tasks
 
@@ -34,113 +41,80 @@ Task has:
 
 - `plannedDate`
 - `startTime`
-- optional `endTime`
+- `endTime`
 
 ### Unscheduled
 
 Task has:
 
 - `plannedDate`
-- no time slot assigned yet
+- no `startTime`
+- no `endTime`
 
-## Task Types
+Unscheduled tasks stay visible in their own section until scheduled.
 
-### Time-Based Tasks
+## Day / Week / Month Behavior
 
-Use:
+### Day View
 
-- `estimatedMinutes`
-- optional scheduled time range
+Implemented:
 
-### Unit-Based Tasks
+- hourly timeline
+- routine blocks rendered by time
+- scheduled tasks rendered by duration
+- tap hour to add task
+- `Plan Day` sheet
+- quick task defaults from tapped hour
+- unscheduled tasks section
 
-Use:
+### Week View
 
-- `targetValue`
-- `targetUnit`
-- optional `completedValue`
+Implemented:
 
-## Intended Planner Behavior
+- seven-day summary
+- schedule density
+- scheduled/unscheduled counts
+- task status indicators
 
-Eventually the backend should support:
+### Month View
 
-- creating tasks under goals
-- assigning tasks to dates
-- assigning optional time slots
-- recording partial and full progress
-- moving projected goal deadline based on real progress
+Implemented:
 
-## Current Status
+- month grid
+- task counts
+- goal indicators
+- completed/failed markers
 
-Planner logic is partially implemented in backend flows.
+## Deadline Projection Logic
 
-Current real state:
+Implemented:
 
-- schema supports planner-relevant fields
-- frontend has planner UI prototypes
-- backend now exposes task creation/list/get/update/status APIs
-- backend validates task ownership and goal ownership
-- backend writes `TaskProgressLog` on each task status update request
-- backend recalculates `Goal.projectedDate` on each task status update
+- expected workload from task definitions
+- completed workload from `TaskProgressLog`
+- due workload from planned schedule
+- dynamic `projectedDate`
 
-## Current Implemented Backend Task Behavior
+Rules:
 
-- `POST /tasks` creates a task under an owned goal
-- `GET /tasks` lists owned tasks and supports `goalId` filtering
-- `GET /tasks/:id` returns only owned tasks
-- `PATCH /tasks/:id` updates non-status task fields only
-- `PATCH /tasks/:id/status` updates status and writes a progress log
-- `PATCH /tasks/:id/status` also recalculates the parent goal's `projectedDate`
+- behind schedule extends the deadline
+- ahead of schedule can shrink the deadline
+- `projectedDate` is backend-controlled only
 
-Current validation rules:
+## Current UX State
 
-- `startTime` and `endTime` must be supplied together
-- `endTime` must be later than `startTime`
-- `unit_based` tasks require `targetValue` and `targetUnit`
-- `completedValue` is only accepted on status updates for `unit_based` tasks
+The planner is usable as a scheduling surface.
 
-## Still Pending
+Strong areas:
 
-- planner-specific scheduling conflict logic
-- calendar/availability APIs
+- daily planning by hour
+- routine block visibility
+- quick add workflow
+- scheduled vs unscheduled distinction
 
-## Projected Deadline Logic
+Still weak:
 
-Current backend logic is deterministic and workload-based.
-
-Inputs:
-
-- `Goal.targetDate`
-- all tasks under the goal
-- all `TaskProgressLog` records for those tasks
-
-Workload rules:
-
-- `time_based` expected workload = `estimatedMinutes`
-- `unit_based` expected workload = `targetValue`
-- `time_based` completed workload = best logged `completionPercent`
-- `unit_based` completed workload = best logged `completedValue`
-- `done` tasks count as fully completed
-
-Schedule rules:
-
-- tasks with `plannedDate` on or before now count as due workload
-- completed workload is compared against due workload
-- behind schedule extends `projectedDate`
-- ahead of schedule shrinks `projectedDate`
-- fully completed workload sets `projectedDate` to the current time
-
-Security rules:
-
-- `projectedDate` is not client-writeable
-- only backend status/progress flow updates it
-- ownership checks happen before task progress updates are accepted
-
-## Important Rule
-
-Planner logic belongs to backend domain logic.
-
-It must not be delegated to:
-
-- frontend local state
-- AI output alone
+- no drag-and-drop
+- no resize by duration
+- overlap handling is still limited
+- task rescheduling UX can still be improved
+- AI does not yet fully generate against saved availability

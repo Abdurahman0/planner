@@ -1,64 +1,56 @@
 # Pricing
 
-## Product Rules
+## Plans
 
-### Free Users
+### Free
 
 - unlimited manual goals
 - unlimited manual tasks
 - no AI-managed goals
+- no AI generation/replan access
 
-### Premium Users
+### ai_basic
 
-- unlimited manual goals
-- unlimited manual tasks
-- up to 3 AI-managed goals
-- access to AI generation and explicit replan features
+- `49,000 UZS`
+- AI access enabled
+- up to 3 active AI-managed goals
+- daily AI quota: `20`
 
-## Current Status
+### ai_pro
 
-Pricing enforcement now has real backend payment support.
+- `79,000 UZS`
+- AI access enabled
+- up to 3 active AI-managed goals
+- daily AI quota: `100`
 
-Current real state:
+## Enforcement
 
-- subscription plan exists on `User`
-- subscription models exist in schema
-- `PaymentTransaction` now exists in schema
-- auth returns `subscriptionPlan`
-- backend goals API enforces free vs premium AI-goal creation rules
-- `POST /payments/initiate` creates pending payment transactions
-- `POST /payments/webhook` verifies provider callbacks and upgrades subscriptions
-- frontend upgrade screen is not implemented yet
+Implemented:
 
-## What Exists Today
+- premium AI-goal enforcement in backend
+- AI quota enforcement in backend
+- webhook-driven subscription upgrades
 
-- schema support for `Subscription`
-- schema support for `SubscriptionPlan`
-- schema support for `PaymentTransaction`
-- safe auth response includes `subscriptionPlan`
-- backend AI-goal restriction logic in goals API
-- backend AI usage checks now sit on top of real subscription upgrades
-- backend payment providers:
-  - Click
-  - Payme
+## Payment Providers
 
-## Current Paid Plans
+Implemented backend providers:
 
-- `ai_basic`
-  - `49,000 UZS` monthly
-  - payment amount stored as `4,900,000` tiyin
-- `ai_pro`
-  - `79,000 UZS` monthly
-  - payment amount stored as `7,900,000` tiyin
+- Click
+- Payme
 
-Current subscription duration logic:
+Endpoints:
 
-- each successful payment adds `30` days
-- subscription truth is written by verified webhook processing only
+- `POST /payments/initiate`
+- `POST /payments/webhook`
 
-## What Does Not Exist Yet
+Upgrade truth:
 
-- frontend billing UI
-- refund handling
-- notification flows around renewals or failed payments
-- provider reconciliation/admin tooling
+- only verified webhook processing upgrades the user
+- frontend success is not trusted
+
+## Current Limitations
+
+- billing UI is not implemented
+- payment status UX is not implemented
+- production credentials may still be test or staging depending deployment environment
+- refund/reconciliation flows are not implemented

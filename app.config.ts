@@ -15,7 +15,13 @@ const config: ExpoConfig = {
         root: './apps/mobile/app',
       },
     ],
-    'expo-notifications',
+    [
+      'expo-notifications',
+      {
+        defaultChannel: 'planner-reminders',
+        color: '#A855F7',
+      },
+    ],
     'expo-secure-store',
   ],
   experiments: {

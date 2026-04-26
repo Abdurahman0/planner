@@ -8,6 +8,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { HealthModule } from './modules/health/health.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AvailabilityModule } from './modules/availability/availability.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     UsersModule,
     GoalsModule,
     TasksModule,
+    AvailabilityModule,
     AiModule,
     PaymentsModule,
     NotificationsModule,

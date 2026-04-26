@@ -1,11 +1,12 @@
 import React from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { Alert, Platform, View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
 import { GoalType, TaskStatus, TaskType } from '@packages/shared';
 import { ChevronLeft, Calendar, Target, Brain, Clock } from 'lucide-react-native';
 import { TaskItem } from '../../src/components/TaskItem';
 import { useEffect, useMemo, useState } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function GoalDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -21,6 +22,10 @@ export default function GoalDetailsScreen() {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskType, setTaskType] = useState<TaskType>(TaskType.TIME_BASED);
+  const [plannedDate, setPlannedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [estimatedMinutes, setEstimatedMinutes] = useState('60');
   const [targetValue, setTargetValue] = useState('1');
   const [targetUnit, setTargetUnit] = useState('unit');
@@ -79,13 +84,18 @@ export default function GoalDetailsScreen() {
         goalId: goal.id,
         title: taskTitle.trim(),
         type: taskType,
-        plannedDate: new Date(),
+        plannedDate,
+        startTime: startTime.trim() || undefined,
+        endTime: endTime.trim() || undefined,
         estimatedMinutes: taskType === TaskType.TIME_BASED ? Number(estimatedMinutes) : undefined,
         targetValue: taskType === TaskType.UNIT_BASED ? Number(targetValue) : undefined,
         targetUnit: taskType === TaskType.UNIT_BASED ? targetUnit.trim() : undefined,
       });
       await fetchTasks(goal.id);
       setTaskTitle('');
+      setPlannedDate(new Date());
+      setStartTime('');
+      setEndTime('');
       setEstimatedMinutes('60');
       setTargetValue('1');
       setTargetUnit('unit');
@@ -180,6 +190,40 @@ export default function GoalDetailsScreen() {
                   >
                     <Text style={[styles.taskTypeButtonText, taskType === TaskType.UNIT_BASED && styles.taskTypeButtonTextActive]}>Unit</Text>
                   </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
+                  <Calendar size={18} color="#A855F7" />
+                  <Text style={styles.dateButtonText}>{plannedDate.toLocaleDateString()}</Text>
+                </TouchableOpacity>
+                {showDatePicker ? (
+                  <DateTimePicker
+                    value={plannedDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_event, nextDate) => {
+                      setShowDatePicker(Platform.OS === 'ios');
+
+                      if (nextDate) {
+                        setPlannedDate(nextDate);
+                      }
+                    }}
+                  />
+                ) : null}
+                <View style={styles.unitRow}>
+                  <TextInput
+                    style={[styles.taskInput, styles.unitValueInput]}
+                    placeholder="Start time HH:mm (optional)"
+                    placeholderTextColor="#444"
+                    value={startTime}
+                    onChangeText={setStartTime}
+                  />
+                  <TextInput
+                    style={[styles.taskInput, styles.unitLabelInput]}
+                    placeholder="End time HH:mm (optional)"
+                    placeholderTextColor="#444"
+                    value={endTime}
+                    onChangeText={setEndTime}
+                  />
                 </View>
                 {taskType === TaskType.TIME_BASED ? (
                   <TextInput
@@ -432,6 +476,21 @@ const styles = StyleSheet.create({
   },
   taskTypeButtonTextActive: {
     color: '#fff',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#000',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#222',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  dateButtonText: {
+    color: '#fff',
+    fontSize: 15,
   },
   unitRow: {
     flexDirection: 'row',

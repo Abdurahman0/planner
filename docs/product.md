@@ -1,105 +1,109 @@
 # Product
 
-## Product Definition
+## Identity
 
-AI Planner is a planner product, not a chat product.
+AI Planner is a planner application, not a chat application.
 
-Core concept:
+Product focus:
 
-- users create goals
-- goals contain planned work
-- tasks will later represent executable units of work
-- planner views will represent scheduled and unscheduled work
-- analytics will reflect actual progress
-- AI will only generate or replan structured plans
+- goals
+- tasks
+- daily scheduling
+- weekly/monthly planning
+- progress visibility
+- deadline movement from real execution
 
-## AI Rules
+AI exists only to:
 
-AI is:
-
-- a structured planning tool
-- used for initial plan generation
-- used for explicit manual replanning
+- generate an initial structured plan
+- replan when the user explicitly asks for it
 
 AI is not:
 
-- a chat assistant
-- a background autopilot
+- a continuous chat assistant
+- the source of truth for planner logic
 - the source of truth for deadlines
-- the source of truth for business rules
 
 ## User Types
 
 ### Free
 
-Rules:
-
 - unlimited manual goals
 - unlimited manual tasks
-- cannot create AI-managed goals
-
-Current implemented state:
-
-- backend enforces free users cannot create AI-managed goals
-- free users can create manual goals through `POST /goals`
+- no AI-managed goals
+- no AI plan generation
 
 ### Premium
 
-Rules:
-
 - unlimited manual goals
 - unlimited manual tasks
-- can create AI-managed goals
-- can have at most 3 active AI-managed goals
+- up to 3 active AI-managed goals
+- AI plan generation
+- AI replanning
 
-Current implemented state:
+## Goal Types
 
-- backend goals API enforces max 3 active AI-managed goals
-- backend payment integration exists
-- premium upgrade is confirmed by payment webhook only
+### Manual Goals
+
+- created directly by the user
+- can have scheduled or unscheduled tasks
+- no AI requirement
+
+### AI Goals
+
+- created through backend AI generation flow
+- premium-only
+- capped at 3 active AI-managed goals
+
+## Core User Flow
+
+```text
+auth -> create goal -> create or generate tasks -> schedule day/week -> complete work -> progress logs -> projected deadline update
+```
 
 ## Current Implemented Features
 
-- backend user registration
-- backend user login
-- JWT authentication
-- `GET /users/me`
-- goals CRUD API
-- tasks create/list/get/update API
-- task status update API
-- TaskProgressLog writes on status updates
-- goal ownership checks
-- task ownership checks
-- backend premium AI-goal enforcement
-- backend AI plan generation and replan APIs
-- backend payment initiation and webhook confirmation
-- backend notification generation and retention summary
-- frontend notification display
-- Expo push token registration
-- aligned database and shared domain model
+- auth flow
+- goals CRUD
+- tasks CRUD except delete
+- task status updates
+- `TaskProgressLog` writes
+- projected deadline updates
+- planner availability blocks
+- scheduled tasks
+- unscheduled tasks
+- day/week/month planner views
+- day view quick-add flow
+- `Plan Day` planner sheet
+- notifications and retention summary
+- Android system push notifications for reminders and retention events
+- backend AI generation and replan
+- backend payment upgrade flow
 
-## Planned But Not Implemented
+## Planning-First UX
 
-- planner scheduling logic API
-- frontend AI generation and replan flows
-- frontend payment flow
-- planner availability API
+Current mobile planner behavior:
 
-## Retention System
+- day view is the main scheduling surface
+- user can tap an hour to add a task quickly
+- user can define routine blocks like sleep, work, study, eating, and custom blocks
+- scheduled tasks appear inside the hourly timeline
+- unscheduled tasks stay in a separate section until placed
 
-Current implemented state:
+Current notification behavior:
 
-- the backend generates user-specific retention notifications
-- users can fetch notifications and a notification summary from authenticated endpoints
-- the frontend displays notifications and unread state
-- the frontend registers Expo push tokens on supported devices
-- reminders are generated for tasks scheduled today
-- missed-task alerts are generated for overdue incomplete tasks
-- progress feedback is generated when projected deadlines move behind or ahead
-- streak rewards are generated from real daily completion history
+- task reminders can surface as Android system notifications
+- missed-task and progress feedback can surface as Android system notifications
+- streak rewards can surface as Android system notifications
+- daily planning reminders can bring the user back into the planner flow
 
-Current limitations:
+## Current Limitations
 
-- push delivery is integrated through Expo, but receipt handling is not implemented
-- there is no notification preferences UI
-- there is no dedicated growth/referral system yet
+- frontend AI planning entry flow is not implemented yet
+- payment UI is not implemented yet
+- drag-and-drop rescheduling is not implemented
+- task resize by drag is not implemented
+- overlap handling in the UI is still basic
+- Android notification styling is limited by OS/system rendering rules
+- push behavior still needs full real-device QA with production Expo credentials
+- real-device QA is still required before public launch

@@ -1,151 +1,134 @@
 # Architecture
 
-## System Overview
+## System Architecture
 
-The project currently has three layers:
+```text
+React Native / Expo app
+        ->
+NestJS backend API
+        ->
+Prisma
+        ->
+PostgreSQL / Neon
+```
 
-- frontend: React Native / Expo-style app rendered today through a Vite preview shell
-- backend: NestJS API
-- database: PostgreSQL via Prisma
+Supporting paths:
 
-## Main Components
+```text
+Backend -> Gemini API
+Backend -> Click / Payme
+Backend -> Expo push service
+Backend -> Render deployment target
+```
+
+## Responsibilities
 
 ### Frontend
 
-Current frontend stack:
+Frontend acts as:
 
-- `apps/mobile`
-- Expo Router style structure
-- Zustand session/data store
-- planner/dashboard/progress/profile UI
-- web preview shell in `src/App.tsx`
-- backend API client for auth/goals/tasks
+- controller/view layer
+- authenticated API client
+- planner UI
+- mobile build target
 
-Current frontend limitation:
+Frontend must not own:
 
-- availability/planner-specific backend APIs do not exist yet
+- auth truth
+- premium truth
+- ownership rules
+- deadline logic
+- AI quota truth
 
 ### Backend
 
-Current backend stack:
+Backend is the source of truth for:
 
-- NestJS
-- `main.ts` bootstrap
-- CORS enabled
-- global `ValidationPipe`
-- Prisma integration
-- auth module
-- users module
-- goals module
-- tasks module
-- AI module
-- payments module
-- health module
+- auth
+- users
+- goals
+- tasks
+- progress logs
+- projected deadlines
+- availability blocks
+- AI quota enforcement
+- payment confirmation
+- notification generation
 
-### Database
+## Mobile Structure
 
-Current database stack:
+Project structure is split, but Expo project root is the **repo root**:
 
-- PostgreSQL
-- Prisma schema aligned with shared domain model
-- migration executed
-- seed executed successfully
+- mobile routes: `apps/mobile/app`
+- mobile source/components/store: `apps/mobile/src`
+- Expo config: `app.config.ts` at repo root
+- EAS config: `eas.json` at repo root
+
+## Backend Structure
+
+Key backend modules:
+
+- auth
+- users
+- goals
+- tasks
+- availability
+- ai
+- payments
+- notifications
+- health
 
 ## Data Flow
 
-Current implemented backend flow:
+### Standard App Flow
 
 ```text
-client -> NestJS API -> Prisma -> PostgreSQL
+user action -> mobile UI -> authenticated API request -> NestJS service -> Prisma -> PostgreSQL
 ```
 
-Current implemented frontend flow:
+### AI Flow
 
 ```text
-mobile/web client -> auth/token store -> authenticated fetch client -> NestJS API -> Prisma -> PostgreSQL
+user request -> backend AI endpoint -> provider call -> strict JSON validation -> backend persists goal/tasks
 ```
 
-Current implemented auth flow:
+AI does not write to the database directly.
+
+### Payment Flow
 
 ```text
-register/login request -> DTO validation -> auth service -> Prisma -> bcrypt -> JWT response
+user initiates payment -> backend creates payment transaction -> external provider -> webhook -> backend verifies -> subscription upgrade
 ```
 
-Current implemented goals flow:
+Frontend payment success is not trusted.
+
+### Notification Flow
 
 ```text
-authenticated user -> JWT guard -> goals controller -> goals service -> ownership/subscription checks -> Prisma -> PostgreSQL
+tasks/progress/deadline state -> backend retention logic -> Notification rows -> optional Expo push delivery
 ```
 
-Current implemented tasks flow:
+## Deployment Notes
 
-```text
-authenticated user -> JWT guard -> tasks controller -> tasks service -> goal/task ownership checks -> Prisma -> PostgreSQL
-                                                |
-                                                -> TaskProgressLog write on status updates
-```
-
-Target application flow:
-
-```text
-mobile app -> backend API -> database
-                    |
-                    -> future AI provider for plan generation/replan only
-```
-
-## App Logic vs AI Logic
-
-### App / Backend Logic
-
-Must own:
-
-- users
-- auth
-- goals
-- tasks
-- planner scheduling
-- progress logs
-- deadline projection
-- ownership rules
-- subscription enforcement
-
-### AI Logic
-
-Must only handle:
-
-- initial structured plan generation
-- explicit structured replanning
-
-Must not own:
-
-- auth
-- task completion logic
-- deadline projection logic
-- premium enforcement
-- planner consistency rules
+- backend deployment example currently used in this repo: `https://planner-v79c.onrender.com`
+- database target: Neon PostgreSQL
+- APK/preview builds: EAS
 
 ## Current Implementation Status
 
 Implemented:
 
-- database foundation
-- backend bootstrap
-- auth
-- `/health`
-- `/users/me`
-- JWT-protected goals API with ownership checks
-- JWT-protected tasks API with ownership checks
-- TaskProgressLog writes on task status updates
-- frontend auth integration
-- frontend goals integration
-- frontend tasks integration
-- frontend goal detail refetch after task status updates
-- premium AI-goal enforcement in backend
+- backend API foundation
+- real mobile-to-backend integration
+- planner scheduling layer
+- AI backend
+- payments backend
+- notifications backend
+- Android-safe-area fixes
 
-Not implemented yet:
+Still incomplete:
 
-- planner APIs
-- notifications
-- availability API integration
-- frontend AI integration
-- frontend payment integration
+- frontend AI flow
+- frontend billing UI
+- push production validation
+- launch hardening

@@ -19,6 +19,7 @@ import { RegisterDeviceDto } from './dto/register-device.dto';
 const DAILY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const STREAK_MILESTONES = new Set([3, 7, 14, 30, 60, 100]);
 const EXPO_PUSH_API_URL = 'https://exp.host/--/api/v2/push/send';
+const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
@@ -62,6 +63,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         },
         select: {
           id: true,
+          title: true,
           goalId: true,
           status: true,
           plannedDate: true,
@@ -75,6 +77,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           },
           goal: {
             select: {
+              title: true,
               targetDate: true,
               projectedDate: true,
             },
@@ -101,9 +104,11 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         userId,
         type: NotificationType.reminder,
         dedupeKey: `${userId}:reminder:${context.dayKey}`,
-        title: 'Today\'s tasks are ready',
+        title: 'Time to continue your plan',
         body: `You have ${context.todayTotalTasks} task${pluralize(context.todayTotalTasks)} scheduled for today.`,
         metadata: {
+          goalId: context.nextScheduledTask?.goalId,
+          taskId: context.nextScheduledTask?.id,
           todayTotalTasks: context.todayTotalTasks,
           todayCompletedTasks: context.todayCompletedTasks,
         },
@@ -119,9 +124,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         userId,
         type: NotificationType.missed_task,
         dedupeKey: `${userId}:missed:${context.dayKey}`,
-        title: 'You have unfinished tasks',
-        body: `${context.missedTasksCount} missed task${pluralize(context.missedTasksCount)} still need attention.`,
+        title: 'Task missed',
+        body: context.firstMissedTask
+          ? `You missed "${context.firstMissedTask.title}". Your projected date may change.`
+          : `${context.missedTasksCount} missed task${pluralize(context.missedTasksCount)} still need attention.`,
         metadata: {
+          goalId: context.firstMissedTask?.goalId,
+          taskId: context.firstMissedTask?.id,
           missedTasksCount: context.missedTasksCount,
         },
       });
@@ -131,20 +140,42 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (context.behindGoalsCount > 0 || context.aheadGoalsCount > 0) {
+    if (context.behindGoalsCount > 0 || context.aheadGoalsCount > 0 || context.onTrackGoalsCount > 0) {
       const isBehind = context.behindGoalsCount > 0;
+      const hasAheadGoal = context.aheadGoalsCount > 0;
+      const progressGoalId = isBehind
+        ? context.firstBehindGoalId
+        : hasAheadGoal
+          ? context.firstAheadGoalId
+          : context.firstOnTrackGoalId;
       const notification = await this.createNotification(prismaClient, {
         userId,
         type: NotificationType.progress_feedback,
-        dedupeKey: `${userId}:progress:${context.dayKey}:${isBehind ? 'behind' : 'ahead'}`,
-        title: isBehind ? 'Your plan needs attention' : 'You are ahead of plan',
+        dedupeKey: `${userId}:progress:${context.dayKey}:${isBehind ? 'behind' : hasAheadGoal ? 'ahead' : 'on-track'}`,
+        title: isBehind ? 'You are falling behind' : 'You are on track',
         body: isBehind
-          ? `${context.behindGoalsCount} goal${pluralize(context.behindGoalsCount)} projected behind target. Replan or complete work today.`
-          : `${context.aheadGoalsCount} goal${pluralize(context.aheadGoalsCount)} projected ahead of target. Keep the momentum.`,
+          ? 'Your goal timeline moved later. Complete today\'s tasks to recover.'
+          : 'Good progress. Your goal is still on schedule.',
         metadata: {
+          goalId: progressGoalId,
           behindGoalsCount: context.behindGoalsCount,
           aheadGoalsCount: context.aheadGoalsCount,
+          onTrackGoalsCount: context.onTrackGoalsCount,
         },
+      });
+
+      if (notification) {
+        generated.push(notification);
+      }
+    }
+
+    if (context.todayTotalTasks === 0) {
+      const notification = await this.createNotification(prismaClient, {
+        userId,
+        type: NotificationType.system,
+        dedupeKey: `${userId}:plan-day:${context.dayKey}`,
+        title: 'Plan your day',
+        body: 'Open your planner and schedule today\'s tasks.',
       });
 
       if (notification) {
@@ -250,6 +281,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       },
       select: {
         id: true,
+        title: true,
         goalId: true,
         status: true,
         plannedDate: true,
@@ -263,6 +295,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         },
         goal: {
           select: {
+            title: true,
             targetDate: true,
             projectedDate: true,
           },
@@ -328,6 +361,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     title: string;
     body: string;
     type: NotificationType;
+    metadata?: Prisma.JsonValue | null;
   }) {
     const devices = await this.prisma.userDevice.findMany({
       where: {
@@ -349,9 +383,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       title: notification.title,
       body: notification.body,
       sound: 'default',
+      priority: 'high',
+      channelId: PLANNER_REMINDERS_CHANNEL_ID,
       data: {
         notificationId: notification.id,
         type: notification.type,
+        ...extractNotificationRouteData(notification.metadata),
       },
     }));
 
@@ -379,6 +416,7 @@ type PrismaClientLike = PrismaService | Prisma.TransactionClient | PrismaClient;
 
 type RetentionTask = {
   id: string;
+  title: string;
   goalId: string;
   status: TaskStatus;
   plannedDate: Date;
@@ -389,6 +427,7 @@ type RetentionTask = {
     loggedAt: Date;
   }>;
   goal: {
+    title: string;
     targetDate: Date;
     projectedDate: Date;
   };
@@ -406,7 +445,13 @@ function buildNotificationSummary(
   const missedTasksCount = tasks.filter(
     (task) => toDayKey(task.plannedDate) < todayKey && !isTaskCompleted(task.status),
   ).length;
-  const goalStates = new Map<string, { targetDate: Date; projectedDate: Date }>();
+  const nextScheduledTask = todayTasks
+    .filter((task) => !isTaskCompleted(task.status))
+    .sort((left, right) => left.plannedDate.getTime() - right.plannedDate.getTime())[0];
+  const firstMissedTask = tasks
+    .filter((task) => toDayKey(task.plannedDate) < todayKey && !isTaskCompleted(task.status))
+    .sort((left, right) => right.plannedDate.getTime() - left.plannedDate.getTime())[0];
+  const goalStates = new Map<string, { targetDate: Date; projectedDate: Date; title: string }>();
 
   for (const task of tasks) {
     goalStates.set(task.goalId, task.goal);
@@ -414,12 +459,21 @@ function buildNotificationSummary(
 
   let behindGoalsCount = 0;
   let aheadGoalsCount = 0;
+  let onTrackGoalsCount = 0;
+  let firstBehindGoalId: string | undefined;
+  let firstAheadGoalId: string | undefined;
+  let firstOnTrackGoalId: string | undefined;
 
-  for (const goal of goalStates.values()) {
+  for (const [goalId, goal] of goalStates.entries()) {
     if (goal.projectedDate.getTime() > goal.targetDate.getTime()) {
       behindGoalsCount += 1;
+      firstBehindGoalId ??= goalId;
     } else if (goal.projectedDate.getTime() < goal.targetDate.getTime()) {
       aheadGoalsCount += 1;
+      firstAheadGoalId ??= goalId;
+    } else {
+      onTrackGoalsCount += 1;
+      firstOnTrackGoalId ??= goalId;
     }
   }
 
@@ -448,6 +502,12 @@ function buildNotificationSummary(
     missedTasksCount,
     behindGoalsCount,
     aheadGoalsCount,
+    onTrackGoalsCount,
+    firstBehindGoalId,
+    firstAheadGoalId,
+    firstOnTrackGoalId,
+    nextScheduledTask,
+    firstMissedTask,
     unreadCount,
   };
 }
@@ -522,6 +582,25 @@ function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
   }
 
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function extractNotificationRouteData(metadata: Prisma.JsonValue | null | undefined) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return {};
+  }
+
+  const metadataRecord = metadata as Record<string, unknown>;
+  const routeData: Record<string, string> = {};
+
+  if (typeof metadataRecord.goalId === 'string') {
+    routeData.goalId = metadataRecord.goalId;
+  }
+
+  if (typeof metadataRecord.taskId === 'string') {
+    routeData.taskId = metadataRecord.taskId;
+  }
+
+  return routeData;
 }
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;

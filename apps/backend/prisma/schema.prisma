@@ -72,8 +72,11 @@ enum TaskSource {
 enum AvailabilityType {
   sleep
   work
-  unavailable
   available
+  blocked
+  eating
+  study
+  custom
 }
 
 enum AiActionType {
@@ -275,6 +278,7 @@ model AvailabilitySlot {
   startTime String
   endTime   String
   type      AvailabilityType
+  label     String?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
