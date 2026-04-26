@@ -28,6 +28,7 @@ Connected:
 - tasks
 - availability
 - notifications summary/list
+- authenticated Expo push token registration
 - Expo push token registration
 - Android push tap routing
 
@@ -51,11 +52,21 @@ Not connected yet:
 
 Implemented:
 
-- Expo notification permission request after authenticated bootstrap
+- in-app notifications list in Profile
+- backend-driven push notifications for Android system delivery
+- Expo notification permission request only after authenticated bootstrap/login
+- non-blocking in-app notice when notification permission is denied
 - Expo push token registration to backend using JWT-protected device registration
 - Android notification channel: `planner-reminders`
 - foreground notification presentation through `expo-notifications`
+- in-app foreground notification banner fallback
 - notification tap handling
+
+In-app notifications vs push notifications:
+
+- in-app notifications are database records shown inside the Profile notifications panel
+- push notifications are Android system notifications delivered through Expo to registered device tokens
+- push delivery does not require the app UI to be open once the backend has a stored Expo token and the backend triggers notification generation
 
 Current tap behavior:
 
@@ -70,6 +81,26 @@ Current supported push scenarios:
 - progress feedback
 - streak rewards
 - daily planning reminders
+
+Current push flow:
+
+- after authenticated app bootstrap, the app configures the Android notification channel
+- it checks permission status
+- if permission is `undetermined`, it requests permission once
+- if permission is already denied, it shows a non-blocking message and does not spam the prompt
+- if granted, it fetches the Expo push token using the configured EAS project ID
+- it registers that token with `POST /notifications/devices`
+- if device registration fails, it retries once safely
+- authenticated push QA can use backend `POST /notifications/test-push` to confirm closed-app delivery on a real APK
+- in development only, the app logs safe push debug signals:
+  - permission status
+  - whether a token was created
+  - whether backend registration succeeded
+
+Foreground vs background behavior:
+
+- foreground: Expo handler requests banner/list presentation, and the app also shows an in-app fallback banner
+- background/closed app: Android system notification depends on backend-generated Expo push delivery, not the in-app list
 
 ## Planner UX
 
@@ -90,6 +121,8 @@ Implemented:
 - unscheduled tasks section
 - tap empty hour to quick-add task
 - `Plan Day` floating action
+- `Plan Day` floating action anchored from the calendar screen root, just above the bottom tab bar
+- `Plan Day` uses the tab bar height as its bottom anchor and must not double-count extra safe-area padding
 - `PlanDaySheet`
 - add/edit routine blocks
 - quick task scheduling modal
@@ -152,6 +185,11 @@ Implemented:
 - planner modals and sheets apply safe-area-aware bottom padding for action buttons
 - `Plan Day` floating button sits above tab bar and Android system navigation on device
 - tab bar background matches the root surface exactly with no top separator line or shadow
+- planner screens should only keep enough bottom spacing to clear the tab bar, Android nav area, and floating action button
+- avoid double-counting bottom spacing between:
+  - tab scene padding
+  - planner scroll content padding
+  - floating action positioning
 
 ## Native Compatibility
 
@@ -186,14 +224,16 @@ EXPO_PUBLIC_API_URL="https://planner-v79c.onrender.com"
 Availability API note:
 
 - the mobile app calls `GET ${API_BASE_URL}/availability` with `Authorization: Bearer <token>`
-- if the backend responds with `404`, the user-facing message is `Planner schedule API is unavailable`
+- if the backend responds with `404`, the user-facing message is `Planner schedule API is unavailable. Backend may need redeploy.`
 - if the backend responds with `401`, the user-facing message is `Session expired. Please log in again.`
+- network failures map to `Cannot reach server. Check connection.`
 - the currently deployed Render backend at `planner-v79c.onrender.com` returned `404` for `/availability` during verification, so the service must be redeployed from the latest backend commit
 
 Production note:
 
 - Expo push token registration depends on the EAS project ID embedded in [app.config.ts](/c:/Users/Abdurahmon/planner/app.config.ts)
 - proper Android notification icon asset is still not configured; Android will fall back to the app/default notification icon until a dedicated monochrome asset is added
+- testing true background/closed-app push requires an EAS-built APK, not the web preview
 
 ## Current Limitations
 

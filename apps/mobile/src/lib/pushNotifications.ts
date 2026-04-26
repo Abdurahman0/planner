@@ -4,6 +4,15 @@ import * as Notifications from 'expo-notifications';
 
 export const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
 export const PLANNER_NOTIFICATION_ACCENT = '#A855F7';
+export const NOTIFICATION_PERMISSION_MESSAGE = 'Enable notifications to receive planner reminders and streak updates.';
+
+export interface PushRegistrationResult {
+  permissionStatus: 'granted' | 'denied' | 'unavailable';
+  registration?: {
+    token: string;
+    platform: 'ios' | 'android' | 'expo';
+  };
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -30,26 +39,30 @@ export async function configurePushNotificationsAsync() {
   });
 }
 
-export async function registerForPushNotificationsAsync(): Promise<{
-  token: string;
-  platform: 'ios' | 'android' | 'expo';
-} | null> {
+export async function registerForPushNotificationsAsync(): Promise<PushRegistrationResult> {
   if (Platform.OS === 'web') {
-    return null;
+    return {
+      permissionStatus: 'unavailable',
+    };
   }
 
   await configurePushNotificationsAsync();
 
   const currentPermissions = await Notifications.getPermissionsAsync();
   let finalStatus = currentPermissions.status;
+  const canAskAgain = 'canAskAgain' in currentPermissions ? Boolean(currentPermissions.canAskAgain) : finalStatus === 'undetermined';
+  devLog('Notification permission status', finalStatus);
 
-  if (finalStatus !== 'granted') {
+  if (finalStatus !== 'granted' && canAskAgain) {
     const requestedPermissions = await Notifications.requestPermissionsAsync();
     finalStatus = requestedPermissions.status;
+    devLog('Notification permission request result', finalStatus);
   }
 
   if (finalStatus !== 'granted') {
-    return null;
+    return {
+      permissionStatus: 'denied',
+    };
   }
 
   try {
@@ -57,13 +70,20 @@ export async function registerForPushNotificationsAsync(): Promise<{
     const pushToken = projectId
       ? await Notifications.getExpoPushTokenAsync({ projectId })
       : await Notifications.getExpoPushTokenAsync();
+    devLog('Expo push token created', Boolean(pushToken.data));
 
     return {
-      token: pushToken.data,
-      platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'expo',
+      permissionStatus: 'granted',
+      registration: {
+        token: pushToken.data,
+        platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'expo',
+      },
     };
   } catch {
-    return null;
+    devLog('Expo push token creation failed', true);
+    return {
+      permissionStatus: 'granted',
+    };
   }
 }
 
@@ -74,4 +94,10 @@ function resolveExpoProjectId() {
     : undefined;
 
   return typeof expoProjectId === 'string' ? expoProjectId : processEnv ?? undefined;
+}
+
+function devLog(label: string, value: unknown) {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    console.log(`[push] ${label}:`, value);
+  }
 }

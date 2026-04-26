@@ -18,11 +18,19 @@
 - do not rely on true transparent Android navigation; use visual blending instead
 - modal and sheet action areas must include bottom inset padding
 - floating actions must sit above the tab bar and Android system navigation
+- floating planner actions must be anchored from the screen root, not from scrollable content
+- planner screens must avoid double-counting tab bar height and safe-area bottom padding
+- planner floating actions must anchor to the actual tab bar height, not stacked hardcoded offsets
+- planner bottom spacing should be the minimum needed to keep final content and actions visible
 - tab bars must not add separator lines or shadows that create a seam above the Android navigation area
 - auth screens must remain keyboard-safe on Android and iOS
 - password visibility toggles must stay UI-only
 - use Expo notification channels explicitly on Android
 - notification tap routing must target existing app routes only
+- request notification permission only after the user is authenticated
+- if notification permission is denied, use a non-blocking in-app notice instead of blocking the user flow
+- keep in-app notifications and push notifications conceptually separate
+- Expo push token registration failures must not break app startup and should retry safely
 
 ## Backend Rules
 
@@ -34,6 +42,9 @@
 - keep quota and subscription checks in backend
 - keep push device registration JWT-protected
 - keep push payloads free of secrets and private account data
+- keep internal cron/sweep endpoints protected with a server-side secret only
+- best-effort push delivery must never block saving the in-app notification record
+- invalid Expo device tokens should be removed when the provider marks them unregistered
 - when new routes are added, verify deployed environments expose them before assuming mobile errors are auth-related
 
 ## AI Rules

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvailabilitySlot, Goal, GoalStatus, Task } from '@packages/shared';
+import { Sparkles } from 'lucide-react-native';
 import { useStore } from '../../src/store/useStore';
 import { PlannerHeader, PlannerView } from '../../src/components/PlannerHeader';
 import { MonthView } from '../../src/components/MonthView';
@@ -34,6 +35,8 @@ export default function CalendarScreen() {
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [prefilledStartTime, setPrefilledStartTime] = useState<string | undefined>(undefined);
+  const tabBarHeight = 64 + insets.bottom;
+  const planDayFabBottom = tabBarHeight + 8;
 
   useEffect(() => {
     void Promise.all([fetchGoals(), fetchTasks(), fetchAvailability()]).catch((error) => {
@@ -199,7 +202,6 @@ export default function CalendarScreen() {
             onEditTask={(task) => openTaskModal(task)}
             onAddScheduleBlock={(startTime) => openScheduleModal(null, startTime)}
             onEditScheduleBlock={(slot) => openScheduleModal(slot)}
-            onPlanDay={() => setPlanDaySheetVisible(true)}
           />
         );
     }
@@ -214,7 +216,13 @@ export default function CalendarScreen() {
         onPrev={handlePrev}
         onNext={handleNext}
       />
-      <View style={[styles.content, { paddingBottom: insets.bottom }]}>{renderView()}</View>
+      <View style={styles.content}>{renderView()}</View>
+      {view === 'day' ? (
+        <TouchableOpacity style={[styles.planDayFab, { bottom: planDayFabBottom }]} onPress={() => setPlanDaySheetVisible(true)}>
+          <Sparkles size={18} color="#fff" />
+          <Text style={styles.planDayFabText}>Plan Day</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <ScheduleBlockModal
         visible={scheduleModalVisible}
@@ -275,5 +283,26 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  planDayFab: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#A855F7',
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  planDayFabText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
   },
 });

@@ -74,6 +74,7 @@ Implemented:
 - quick task defaults from tapped hour
 - unscheduled tasks section
 - floating planner action positioned above tab bar/system navigation
+- planner bottom spacing trimmed to the minimum needed to keep `24:00`, unscheduled tasks, and floating actions visible
 
 ### Week View
 
@@ -129,3 +130,4 @@ Still weak:
 - AI does not yet fully generate against saved availability
 - cross-midnight schedule blocks are not supported as one block:
   - users must split them, for example `23:00-24:00` and `00:00-07:00`
+- planner overlap handling is still intentionally simple; there is no drag/drop or resize yet

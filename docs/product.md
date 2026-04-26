@@ -92,6 +92,9 @@ Current mobile planner behavior:
 
 Current notification behavior:
 
+- the app keeps an in-app notification list for recent planner events
+- backend-generated Expo push notifications can also surface as Android system notifications
+- closed-app/background delivery depends on backend sweep or cron execution, not just the app UI
 - task reminders can surface as Android system notifications
 - missed-task and progress feedback can surface as Android system notifications
 - streak rewards can surface as Android system notifications
@@ -106,4 +109,5 @@ Current notification behavior:
 - overlap handling in the UI is still basic
 - Android notification styling is limited by OS/system rendering rules
 - push behavior still needs full real-device QA with production Expo credentials
+- closed-app/background push depends on deployed backend sweep/cron execution, not just the app UI being open
 - real-device QA is still required before public launch

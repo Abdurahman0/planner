@@ -79,3 +79,13 @@ export function getClickSecretKey() {
 export function getClickCheckoutUrl() {
   return process.env.CLICK_CHECKOUT_URL?.trim()?.replace(/\/+$/, '') || 'https://my.click.uz/services/pay';
 }
+
+export function getInternalCronSecret() {
+  const secret = process.env.INTERNAL_CRON_SECRET?.trim();
+
+  if (!secret) {
+    throw new Error('Missing required environment variable: INTERNAL_CRON_SECRET');
+  }
+
+  return secret;
+}

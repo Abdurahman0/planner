@@ -1,39 +1,72 @@
 import { Stack, useRouter } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, DarkTheme } from '@react-navigation/native';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, Text, TouchableOpacity } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import { useAppBootstrap } from '../src/hooks/useAppBootstrap';
 import { NotificationType } from '@packages/shared';
-import { configurePushNotificationsAsync } from '../src/lib/pushNotifications';
 import { useStore } from '../src/store/useStore';
 
 const queryClient = new QueryClient();
 const APP_SURFACE_COLOR = '#000000';
 
 export default function RootLayout() {
-  useAppBootstrap();
-  useAndroidSystemUi();
-  useNotificationRouting();
-
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider value={DarkTheme}>
-          <View style={styles.container}>
-            <StatusBar style="light" backgroundColor={APP_SURFACE_COLOR} />
-            <Stack screenOptions={{ headerShown: false, contentStyle: styles.container }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="auth" />
-            </Stack>
-          </View>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <AppShell />
     </SafeAreaProvider>
+  );
+}
+
+function AppShell() {
+  useAppBootstrap();
+  useAndroidSystemUi();
+  const notificationPermissionNotice = useStore((state) => state.notificationPermissionNotice);
+  const clearNotificationPermissionNotice = useStore((state) => state.clearNotificationPermissionNotice);
+  const { foregroundBanner, dismissForegroundBanner, openForegroundBanner } = useNotificationRouting();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider value={DarkTheme}>
+        <View style={styles.container}>
+          <StatusBar style="light" backgroundColor={APP_SURFACE_COLOR} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: styles.container }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth" />
+          </Stack>
+          {notificationPermissionNotice ? (
+            <View style={[styles.noticeBanner, { top: insets.top + 12 }]}>
+              <Text style={styles.noticeTitle}>Notifications are off</Text>
+              <Text style={styles.noticeBody}>{notificationPermissionNotice}</Text>
+              <TouchableOpacity onPress={clearNotificationPermissionNotice}>
+                <Text style={styles.noticeAction}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {foregroundBanner ? (
+            <TouchableOpacity
+              activeOpacity={0.92}
+              style={[styles.foregroundBanner, { top: insets.top + (notificationPermissionNotice ? 108 : 12) }]}
+              onPress={() => void openForegroundBanner()}
+            >
+              <View style={styles.foregroundBannerHeader}>
+                <Text style={styles.foregroundBannerLabel}>Planner reminder</Text>
+                <TouchableOpacity onPress={dismissForegroundBanner} hitSlop={8}>
+                  <Text style={styles.foregroundBannerDismiss}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.foregroundBannerTitle}>{foregroundBanner.title}</Text>
+              <Text style={styles.foregroundBannerBody}>{foregroundBanner.body}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -64,17 +97,35 @@ function useNotificationRouting() {
   const markNotificationRead = useStore((state) => state.markNotificationRead);
   const handledResponses = useRef(new Set<string>());
   const [pendingTarget, setPendingTarget] = useState<NotificationNavigationTarget | null>(null);
+  const [foregroundBanner, setForegroundBanner] = useState<{
+    title: string;
+    body: string;
+    target: NotificationNavigationTarget;
+  } | null>(null);
+  const bannerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    void configurePushNotificationsAsync();
-
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       handleNotificationResponse(response);
     });
 
-    const receivedSubscription = Notifications.addNotificationReceivedListener(() => {
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       if (!user) {
         return;
+      }
+
+      const target = resolveNotificationTargetFromData(notification.request.content.data);
+      const title = notification.request.content.title;
+      const body = notification.request.content.body;
+
+      if (title && body && target) {
+        setForegroundBanner({ title, body, target });
+        if (bannerTimeoutRef.current) {
+          clearTimeout(bannerTimeoutRef.current);
+        }
+        bannerTimeoutRef.current = setTimeout(() => {
+          setForegroundBanner(null);
+        }, 5000);
       }
 
       void Promise.allSettled([fetchNotifications(), fetchNotificationSummary()]);
@@ -89,6 +140,9 @@ function useNotificationRouting() {
     return () => {
       responseSubscription.remove();
       receivedSubscription.remove();
+      if (bannerTimeoutRef.current) {
+        clearTimeout(bannerTimeoutRef.current);
+      }
     };
 
     function handleNotificationResponse(
@@ -150,13 +204,30 @@ function useNotificationRouting() {
 
     router.push(target.route);
   }
+
+  return {
+    foregroundBanner,
+    dismissForegroundBanner: () => setForegroundBanner(null),
+    openForegroundBanner: async () => {
+      if (!foregroundBanner) {
+        return;
+      }
+
+      setForegroundBanner(null);
+      await completeNotificationNavigation(foregroundBanner.target);
+    },
+  };
 }
 
 function resolveNotificationTarget(
   response: Notifications.NotificationResponse,
 ): NotificationNavigationTarget | null {
-  const data = response.notification.request.content.data;
+  return resolveNotificationTargetFromData(response.notification.request.content.data);
+}
 
+function resolveNotificationTargetFromData(
+  data: unknown,
+): NotificationNavigationTarget | null {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return {
       route: '/(tabs)/calendar',
@@ -208,5 +279,72 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: APP_SURFACE_COLOR,
+  },
+  noticeBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    backgroundColor: '#151515',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  noticeTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  noticeBody: {
+    color: '#B3B3B3',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  noticeAction: {
+    color: '#A855F7',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  foregroundBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    backgroundColor: '#1A1026',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#A855F744',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  foregroundBannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  foregroundBannerLabel: {
+    color: '#C084FC',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  foregroundBannerDismiss: {
+    color: '#AFAFAF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  foregroundBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  foregroundBannerBody: {
+    color: '#D0D0D0',
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

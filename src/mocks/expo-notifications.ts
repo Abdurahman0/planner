@@ -15,12 +15,14 @@ export async function setNotificationChannelAsync() {
 export async function getPermissionsAsync() {
   return {
     status: resolvePermissionStatus(),
+    canAskAgain: resolvePermissionStatus() === 'undetermined',
   };
 }
 
 export async function requestPermissionsAsync() {
   return {
     status: resolvePermissionStatus(),
+    canAskAgain: resolvePermissionStatus() === 'undetermined',
   };
 }
 

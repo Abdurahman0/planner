@@ -379,6 +379,15 @@ export async function markNotificationReadRequest(token: string, notificationId:
   return normalizeNotification(response);
 }
 
+export async function refreshNotificationsRequest(token: string) {
+  return request<{
+    generatedCount: number;
+  }>('/notifications/refresh', {
+    method: 'POST',
+    token,
+  });
+}
+
 export async function registerDeviceRequest(token: string, input: RegisterDeviceInput) {
   return request('/notifications/devices', {
     method: 'POST',
@@ -415,7 +424,7 @@ async function request<T>(path: string, options: RequestOptions = {}) {
     console.log('Response status:', response.status);
   } catch (error) {
     console.log('NETWORK ERROR:', error);
-    throw error;
+    throw new ApiError(0, 'Cannot reach server. Check connection.', error);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -535,7 +544,7 @@ function buildApiError(path: string, status: number, data: unknown) {
 
 function mapApiErrorMessage(path: string, status: number, data: unknown) {
   if (status === 404 && path.startsWith('/availability')) {
-    return 'Planner schedule API is unavailable';
+    return 'Planner schedule API is unavailable. Backend may need redeploy.';
   }
 
   if (status === 401 && !path.startsWith('/auth')) {

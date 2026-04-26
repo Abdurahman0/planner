@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ export default function ProfileScreen() {
   const fetchNotifications = useStore((state) => state.fetchNotifications);
   const fetchNotificationSummary = useStore((state) => state.fetchNotificationSummary);
   const markNotificationRead = useStore((state) => state.markNotificationRead);
+  const refreshNotifications = useStore((state) => state.refreshNotifications);
   const isPremium = user?.subscriptionPlan !== SubscriptionPlan.FREE;
   const router = useRouter();
 
@@ -26,6 +27,15 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     await logout();
     router.replace('/auth');
+  };
+
+  const handleRefreshNotifications = async () => {
+    try {
+      await refreshNotifications();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to refresh notifications';
+      Alert.alert('Refresh Failed', message);
+    }
   };
 
   return (
@@ -74,6 +84,7 @@ export default function ProfileScreen() {
           <NotificationsPanel
             notifications={notifications}
             unreadCount={notificationSummary?.unreadCount ?? 0}
+            onRefresh={() => void handleRefreshNotifications()}
             onPressNotification={(notificationId) => {
               void markNotificationRead(notificationId);
             }}

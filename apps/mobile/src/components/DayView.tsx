@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AvailabilitySlot, Task } from '@packages/shared';
-import { Plus, Sparkles } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Plus } from 'lucide-react-native';
 import { TaskItem } from './TaskItem';
 import {
   getAvailabilityColor,
@@ -28,7 +27,6 @@ interface DayViewProps {
   onEditTask?: (task: Task) => void;
   onAddScheduleBlock?: (startTime?: string) => void;
   onEditScheduleBlock?: (slot: AvailabilitySlot) => void;
-  onPlanDay?: () => void;
 }
 
 export const DayView: React.FC<DayViewProps> = ({
@@ -39,9 +37,7 @@ export const DayView: React.FC<DayViewProps> = ({
   onEditTask,
   onAddScheduleBlock,
   onEditScheduleBlock,
-  onPlanDay,
 }) => {
-  const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const [pressedHour, setPressedHour] = useState<number | null>(null);
   const hours = Array.from({ length: PLANNER_END_HOUR - PLANNER_START_HOUR }, (_, index) => PLANNER_START_HOUR + index);
@@ -50,8 +46,7 @@ export const DayView: React.FC<DayViewProps> = ({
   const unscheduledTasks = getUnscheduledTasks(dayTasks);
   const dayAvailability = getAvailabilityForDate(availability, selectedDate);
   const timelineHeight = (PLANNER_END_HOUR - PLANNER_START_HOUR) * TIMELINE_HOUR_HEIGHT;
-  const planDayFabBottom = insets.bottom + 96;
-  const contentBottomPadding = planDayFabBottom + 92;
+  const contentBottomPadding = 16;
   const selectedDateKey = selectedDate.toDateString();
   const defaultScrollHour = useMemo(() => {
     const now = new Date();
@@ -243,10 +238,6 @@ export const DayView: React.FC<DayViewProps> = ({
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={[styles.planDayFab, { bottom: planDayFabBottom }]} onPress={onPlanDay}>
-        <Sparkles size={18} color="#fff" />
-        <Text style={styles.planDayFabText}>Plan Day</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -520,27 +511,6 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     color: '#666',
-  },
-  planDayFab: {
-    position: 'absolute',
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#A855F7',
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  planDayFabText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
   },
   timelineEndMarker: {
     flexDirection: 'row',

@@ -37,6 +37,7 @@ Current maturity level:
 - AI backend: generate plan, replan, quota checks, usage logging
 - payments backend: Click, Payme, webhook-driven upgrades
 - notifications backend: reminders, missed-task alerts, streaks, device registration
+- backend-driven Expo push notifications with test-push and cron-triggered sweep endpoints
 - mobile auth/goals/tasks/availability/notifications integration
 - Android-safe-area and system navigation fixes
 - Expo/EAS build configuration at repo root
@@ -47,6 +48,7 @@ Current maturity level:
 - frontend AI entry flow
 - frontend billing/payment UX
 - push notification production validation
+- cron/scheduler production validation for closed-app push delivery
 - deeper AI use of saved availability
 - drag-and-drop or resize-based planner interactions
 

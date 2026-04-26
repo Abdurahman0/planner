@@ -27,6 +27,10 @@
   - Expo push token flow
   - Android channel setup
   - notification tap routing
+  - authenticated permission request timing
+  - foreground in-app fallback banner
+  - backend test push endpoint
+  - internal cron-triggerable notification sweep
 
 ## CURRENT
 
@@ -36,7 +40,10 @@
 - planner UX polish
 - full-day planner QA on real devices
 - push notification real-device validation
+- planner bottom spacing and floating action tuning on Android
 - Render deployment verification for newly added API modules
+- background/closed-app push verification on deployed backend
+- Render redeploy verification for `/availability`, `/notifications/test-push`, and `/notifications/run-sweep`
 
 ## NEXT
 
@@ -57,4 +64,5 @@ Not yet done:
 - deep planner conflict handling
 - drag-and-drop rescheduling
 - native support for cross-midnight planner blocks without manual splitting
+- full production scheduler/queue infrastructure beyond current cron + in-process fallback
 - launch-grade QA and production verification

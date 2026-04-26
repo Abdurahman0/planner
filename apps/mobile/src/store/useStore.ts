@@ -28,6 +28,7 @@ import {
   fetchTasks,
   loginRequest,
   markNotificationReadRequest,
+  refreshNotificationsRequest,
   registerDeviceRequest,
   registerRequest,
   updateAvailabilityRequest,
@@ -40,7 +41,10 @@ import {
   type UpdateTaskInput,
   type UpdateTaskStatusInput,
 } from '../lib/api';
-import { registerForPushNotificationsAsync } from '../lib/pushNotifications';
+import {
+  NOTIFICATION_PERMISSION_MESSAGE,
+  registerForPushNotificationsAsync,
+} from '../lib/pushNotifications';
 import { clearStoredToken, getStoredToken, storeToken } from '../lib/tokenStorage';
 
 interface AppState {
@@ -51,8 +55,10 @@ interface AppState {
   notifications: Notification[];
   notificationSummary: NotificationSummary | null;
   availability: AvailabilitySlot[];
+  notificationPermissionNotice: string | null;
   isLoading: boolean;
   isInitialized: boolean;
+  clearNotificationPermissionNotice: () => void;
   initializeAuth: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
@@ -71,6 +77,7 @@ interface AppState {
   fetchNotifications: () => Promise<Notification[]>;
   fetchNotificationSummary: () => Promise<NotificationSummary>;
   markNotificationRead: (notificationId: string) => Promise<void>;
+  refreshNotifications: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -81,8 +88,13 @@ export const useStore = create<AppState>((set, get) => ({
   notifications: [],
   notificationSummary: null,
   availability: [],
+  notificationPermissionNotice: null,
   isLoading: false,
   isInitialized: false,
+
+  clearNotificationPermissionNotice: () => {
+    set({ notificationPermissionNotice: null });
+  },
 
   initializeAuth: async () => {
     if (get().isInitialized) {
@@ -102,6 +114,8 @@ export const useStore = create<AppState>((set, get) => ({
           tasks: [],
           notifications: [],
           notificationSummary: null,
+          availability: [],
+          notificationPermissionNotice: null,
           isInitialized: true,
           isLoading: false,
         });
@@ -111,7 +125,7 @@ export const useStore = create<AppState>((set, get) => ({
       const user = await fetchCurrentUser(token);
       set({ token, user });
       await hydrateAppData(token, set);
-      await syncPushRegistration(token);
+      await syncPushRegistration(token, set);
       set({ isInitialized: true, isLoading: false });
     } catch (error) {
       await clearStoredToken();
@@ -122,6 +136,8 @@ export const useStore = create<AppState>((set, get) => ({
         tasks: [],
         notifications: [],
         notificationSummary: null,
+        availability: [],
+        notificationPermissionNotice: null,
         isInitialized: true,
         isLoading: false,
       });
@@ -139,7 +155,7 @@ export const useStore = create<AppState>((set, get) => ({
         user: response.user,
       });
       await hydrateAppData(response.accessToken, set);
-      await syncPushRegistration(response.accessToken);
+      await syncPushRegistration(response.accessToken, set);
       set({ isInitialized: true, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
@@ -158,7 +174,7 @@ export const useStore = create<AppState>((set, get) => ({
         user: response.user,
       });
       await hydrateAppData(response.accessToken, set);
-      await syncPushRegistration(response.accessToken);
+      await syncPushRegistration(response.accessToken, set);
       set({ isInitialized: true, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
@@ -176,6 +192,7 @@ export const useStore = create<AppState>((set, get) => ({
       notifications: [],
       notificationSummary: null,
       availability: [],
+      notificationPermissionNotice: null,
       isLoading: false,
       isInitialized: true,
     });
@@ -402,6 +419,18 @@ export const useStore = create<AppState>((set, get) => ({
       throw normalizeError(error);
     }
   },
+
+  refreshNotifications: async () => {
+    const token = requireToken(get);
+
+    try {
+      await refreshNotificationsRequest(token);
+      await Promise.all([get().fetchNotifications(), get().fetchNotificationSummary()]);
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
 }));
 
 async function hydrateAppData(
@@ -432,17 +461,52 @@ async function hydrateAppData(
   });
 }
 
-async function syncPushRegistration(token: string) {
+async function syncPushRegistration(
+  token: string,
+  set: (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void,
+) {
   try {
-    const registration = await registerForPushNotificationsAsync();
+    const result = await registerForPushNotificationsAsync();
 
-    if (!registration) {
+    if (result.permissionStatus === 'denied') {
+      set({ notificationPermissionNotice: NOTIFICATION_PERMISSION_MESSAGE });
       return;
     }
 
-    await registerDeviceRequest(token, registration);
+    if (result.permissionStatus === 'unavailable') {
+      return;
+    }
+
+    if (!result.registration) {
+      return;
+    }
+
+    await attemptDeviceRegistration(token, result.registration);
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('[push] Device registration succeeded');
+    }
+    set({ notificationPermissionNotice: null });
   } catch {
     // Push registration must not block app startup.
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('[push] Device registration failed');
+    }
+  }
+}
+
+async function attemptDeviceRegistration(
+  token: string,
+  registration: {
+    token: string;
+    platform: 'ios' | 'android' | 'expo';
+  },
+) {
+  try {
+    await registerDeviceRequest(token, registration);
+    return;
+  } catch (error) {
+    await delay(1500);
+    await registerDeviceRequest(token, registration);
   }
 }
 
@@ -470,6 +534,7 @@ async function handleApiError(
       notifications: [],
       notificationSummary: null,
       availability: [],
+      notificationPermissionNotice: null,
       isLoading: false,
       isInitialized: true,
     });
@@ -517,4 +582,8 @@ function compareAvailabilitySlots(left: AvailabilitySlot, right: AvailabilitySlo
   }
 
   return left.endTime.localeCompare(right.endTime);
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

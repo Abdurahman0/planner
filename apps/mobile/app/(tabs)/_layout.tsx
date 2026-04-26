@@ -15,7 +15,7 @@ export default function TabLayout() {
   const isInitialized = useStore((state) => state.isInitialized);
   const tabBarBottomPadding = Math.max(insets.bottom, 12);
   const tabBarHeight = 64 + insets.bottom;
-  const sceneBottomInset = tabBarHeight + 28;
+  const sceneBottomInset = tabBarHeight + 4;
 
   useEffect(() => {
     if (isInitialized && !user) {

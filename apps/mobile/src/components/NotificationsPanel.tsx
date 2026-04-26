@@ -6,19 +6,28 @@ interface NotificationsPanelProps {
   notifications: Notification[];
   unreadCount: number;
   onPressNotification: (notificationId: string) => void;
+  onRefresh?: () => void;
 }
 
 export function NotificationsPanel({
   notifications,
   unreadCount,
   onPressNotification,
+  onRefresh,
 }: NotificationsPanelProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{unreadCount}</Text>
+        <View style={styles.headerActions}>
+          {onRefresh ? (
+            <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
+              <Text style={styles.refreshButtonText}>Refresh</Text>
+            </TouchableOpacity>
+          ) : null}
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{unreadCount}</Text>
+          </View>
         </View>
       </View>
 
@@ -62,10 +71,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   title: {
     fontSize: 18,
     fontWeight: '700',
     color: '#fff',
+  },
+  refreshButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#1A1026',
+    borderWidth: 1,
+    borderColor: '#A855F744',
+  },
+  refreshButtonText: {
+    color: '#C084FC',
+    fontSize: 12,
+    fontWeight: '700',
   },
   badge: {
     minWidth: 24,
