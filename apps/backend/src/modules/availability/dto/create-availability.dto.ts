@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { AvailabilityType } from '@prisma/client';
 
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const TIME_PATTERN = /^(?:([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 export class CreateAvailabilityDto {
   @IsInt()

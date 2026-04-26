@@ -14,6 +14,11 @@
 - no Recharts in native app code
 - use `react-native-safe-area-context` correctly
 - keep Android system UI dark and safe-area aware
+- Android navigation bar must use the same solid surface color as the root app background
+- do not rely on true transparent Android navigation; use visual blending instead
+- modal and sheet action areas must include bottom inset padding
+- floating actions must sit above the tab bar and Android system navigation
+- tab bars must not add separator lines or shadows that create a seam above the Android navigation area
 - auth screens must remain keyboard-safe on Android and iOS
 - password visibility toggles must stay UI-only
 - use Expo notification channels explicitly on Android
@@ -29,6 +34,7 @@
 - keep quota and subscription checks in backend
 - keep push device registration JWT-protected
 - keep push payloads free of secrets and private account data
+- when new routes are added, verify deployed environments expose them before assuming mobile errors are auth-related
 
 ## AI Rules
 

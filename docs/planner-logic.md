@@ -60,12 +60,20 @@ Unscheduled tasks stay visible in their own section until scheduled.
 Implemented:
 
 - hourly timeline
+- full 00:00-24:00 range
+- reachable `00:00` start and `24:00` end marker
+- consistent hour row heights
+- default auto-scroll:
+  - today opens near the current hour
+  - other days open near `06:00`
+- explicit end-of-day marker
 - routine blocks rendered by time
 - scheduled tasks rendered by duration
 - tap hour to add task
 - `Plan Day` sheet
 - quick task defaults from tapped hour
 - unscheduled tasks section
+- floating planner action positioned above tab bar/system navigation
 
 ### Week View
 
@@ -110,6 +118,7 @@ Strong areas:
 - routine block visibility
 - quick add workflow
 - scheduled vs unscheduled distinction
+- Android-safe modal actions for planner sheets
 
 Still weak:
 
@@ -118,3 +127,5 @@ Still weak:
 - overlap handling is still limited
 - task rescheduling UX can still be improved
 - AI does not yet fully generate against saved availability
+- cross-midnight schedule blocks are not supported as one block:
+  - users must split them, for example `23:00-24:00` and `00:00-07:00`

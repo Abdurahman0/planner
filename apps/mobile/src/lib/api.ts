@@ -424,13 +424,7 @@ async function request<T>(path: string, options: RequestOptions = {}) {
   const data = text ? safeJsonParse(text) : null;
 
   if (!response.ok) {
-    const message = extractErrorMessage(data) ?? `Request failed with status ${response.status}`;
-
-    if (response.status === 401) {
-      throw new UnauthorizedError(response.status, message, data);
-    }
-
-    throw new ApiError(response.status, message, data);
+    throw buildApiError(path, response.status, data);
   }
 
   return data as T;
@@ -527,6 +521,28 @@ function safeJsonParse(value: string) {
   } catch {
     return value;
   }
+}
+
+function buildApiError(path: string, status: number, data: unknown) {
+  const message = mapApiErrorMessage(path, status, data);
+
+  if (status === 401 && !path.startsWith('/auth')) {
+    return new UnauthorizedError(status, message, data);
+  }
+
+  return new ApiError(status, message, data);
+}
+
+function mapApiErrorMessage(path: string, status: number, data: unknown) {
+  if (status === 404 && path.startsWith('/availability')) {
+    return 'Planner schedule API is unavailable';
+  }
+
+  if (status === 401 && !path.startsWith('/auth')) {
+    return 'Session expired. Please log in again.';
+  }
+
+  return extractErrorMessage(data) ?? `Request failed with status ${status}`;
 }
 
 function resolveBaseUrl() {

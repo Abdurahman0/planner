@@ -135,6 +135,14 @@ Implemented:
 - `endTime > startTime`
 - overlapping blocks rejected
 
+Deployment note:
+
+- the route exists in local code and is registered in `AppModule`
+- if a deployed environment returns `Cannot GET /availability`, that deployment is stale or misbuilt rather than missing the controller locally
+- verified on April 26, 2026:
+  - `https://planner-v79c.onrender.com/availability` returned `404`
+  - Render must be redeployed from the latest commit before planner availability works on the APK
+
 ## AI Rules
 
 Implemented:
@@ -237,3 +245,4 @@ This documents the current deployment target/example. It does not mean launch re
 - planner conflict handling is still basic
 - no background job system beyond current in-process scheduling logic
 - live payment and push reliability still need end-to-end QA
+- deployment verification is still required when new modules/routes are added

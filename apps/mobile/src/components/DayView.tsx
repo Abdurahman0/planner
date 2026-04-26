@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AvailabilitySlot, Task } from '@packages/shared';
 import { Plus, Sparkles } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TaskItem } from './TaskItem';
 import {
   getAvailabilityColor,
@@ -15,6 +16,7 @@ import {
   getUnscheduledTasks,
   PLANNER_END_HOUR,
   PLANNER_START_HOUR,
+  TIMELINE_BOTTOM_PADDING,
   TIMELINE_HOUR_HEIGHT,
 } from '../lib/planner';
 
@@ -39,17 +41,51 @@ export const DayView: React.FC<DayViewProps> = ({
   onEditScheduleBlock,
   onPlanDay,
 }) => {
+  const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
   const [pressedHour, setPressedHour] = useState<number | null>(null);
-  const hours = Array.from({ length: PLANNER_END_HOUR - PLANNER_START_HOUR + 1 }, (_, index) => PLANNER_START_HOUR + index);
+  const hours = Array.from({ length: PLANNER_END_HOUR - PLANNER_START_HOUR }, (_, index) => PLANNER_START_HOUR + index);
   const dayTasks = getTasksForDate(tasks, selectedDate);
   const scheduledTasks = getScheduledTasks(dayTasks);
   const unscheduledTasks = getUnscheduledTasks(dayTasks);
   const dayAvailability = getAvailabilityForDate(availability, selectedDate);
   const timelineHeight = (PLANNER_END_HOUR - PLANNER_START_HOUR) * TIMELINE_HOUR_HEIGHT;
+  const planDayFabBottom = insets.bottom + 96;
+  const contentBottomPadding = planDayFabBottom + 92;
+  const selectedDateKey = selectedDate.toDateString();
+  const defaultScrollHour = useMemo(() => {
+    const now = new Date();
+
+    if (
+      selectedDate.getFullYear() === now.getFullYear() &&
+      selectedDate.getMonth() === now.getMonth() &&
+      selectedDate.getDate() === now.getDate()
+    ) {
+      return Math.max(PLANNER_START_HOUR, Math.min(PLANNER_END_HOUR - 1, now.getHours() - 1));
+    }
+
+    return 6;
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, getTimelineTopOffset(`${defaultScrollHour.toString().padStart(2, '0')}:00`) - 24),
+        animated: false,
+      });
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [defaultScrollHour, selectedDateKey]);
 
   return (
     <View style={styles.root}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: contentBottomPadding }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.summaryCard}>
           <View>
             <Text style={styles.summaryTitle}>Daily Planner</Text>
@@ -79,17 +115,15 @@ export const DayView: React.FC<DayViewProps> = ({
         </View>
 
         <View style={styles.timelineCard}>
-          <View style={styles.timelineContainer}>
+          <View style={[styles.timelineContainer, { minHeight: timelineHeight + TIMELINE_BOTTOM_PADDING }]}>
             {hours.map((hour) => {
               const label = `${hour.toString().padStart(2, '0')}:00`;
-              const isLast = hour === PLANNER_END_HOUR;
 
               return (
                 <Pressable
                   key={label}
                   style={({ pressed }) => [
                     styles.hourRow,
-                    isLast && styles.lastHourRow,
                     pressed && styles.hourRowPressed,
                   ]}
                   onPress={() => onAddTaskAtTime?.(label)}
@@ -101,13 +135,22 @@ export const DayView: React.FC<DayViewProps> = ({
                   </View>
                   <View style={styles.hourSurface}>
                     <View style={styles.hourLine} />
-                    <View style={[styles.hourAddBadge, pressedHour === hour && styles.hourAddBadgeActive]}>
-                      <Plus size={12} color={pressedHour === hour ? '#fff' : '#A855F7'} />
-                    </View>
+                    {pressedHour === hour ? (
+                      <View style={[styles.hourAddBadge, styles.hourAddBadgeActive]}>
+                        <Plus size={12} color="#fff" />
+                      </View>
+                    ) : null}
                   </View>
                 </Pressable>
               );
             })}
+
+            <View style={styles.timelineEndMarker}>
+              <View style={styles.timeColumn}>
+                <Text style={styles.timeText}>24:00</Text>
+              </View>
+              <View style={styles.endMarkerLine} />
+            </View>
 
             <View pointerEvents="box-none" style={[styles.availabilityLayer, { height: timelineHeight }]}>
               {dayAvailability.map((slot) => {
@@ -200,7 +243,7 @@ export const DayView: React.FC<DayViewProps> = ({
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.planDayFab} onPress={onPlanDay}>
+      <TouchableOpacity style={[styles.planDayFab, { bottom: planDayFabBottom }]} onPress={onPlanDay}>
         <Sparkles size={18} color="#fff" />
         <Text style={styles.planDayFabText}>Plan Day</Text>
       </TouchableOpacity>
@@ -218,7 +261,6 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 16,
-    paddingBottom: 120,
   },
   summaryCard: {
     backgroundColor: '#0B0B0B',
@@ -234,7 +276,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   summarySubtitle: {
-    color: '#8A8A8A',
+    color: '#9A9A9A',
     marginTop: 6,
     lineHeight: 20,
   },
@@ -293,65 +335,62 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1C1C1C',
     paddingVertical: 16,
+    overflow: 'hidden',
   },
   timelineContainer: {
     marginLeft: 8,
     marginRight: 12,
     position: 'relative',
+    paddingBottom: TIMELINE_BOTTOM_PADDING,
   },
   hourRow: {
     flexDirection: 'row',
     height: TIMELINE_HOUR_HEIGHT,
   },
   hourRowPressed: {
-    opacity: 0.92,
-  },
-  lastHourRow: {
-    height: 0,
+    backgroundColor: '#090909',
   },
   timeColumn: {
-    width: 58,
+    width: 64,
     paddingRight: 8,
     alignItems: 'flex-end',
-    marginTop: -8,
   },
   timeText: {
-    color: '#5E5E5E',
+    color: '#929292',
     fontSize: 12,
     fontWeight: '600',
   },
   hourSurface: {
     flex: 1,
     position: 'relative',
+    justifyContent: 'flex-start',
   },
   hourLine: {
     flex: 1,
     borderTopWidth: 1,
-    borderTopColor: '#1A1A1A',
-    marginTop: 8,
+    borderTopColor: '#2A2A2A',
+    marginTop: 12,
   },
   hourAddBadge: {
     position: 'absolute',
-    right: 8,
-    top: -4,
+    right: 10,
+    top: 2,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#111',
-    borderWidth: 1,
-    borderColor: '#232323',
     alignItems: 'center',
     justifyContent: 'center',
   },
   hourAddBadgeActive: {
     backgroundColor: '#A855F7',
     borderColor: '#A855F7',
+    borderWidth: 1,
   },
   availabilityLayer: {
     position: 'absolute',
-    left: 68,
+    left: 74,
     right: 8,
-    top: 8,
+    top: 10,
   },
   availabilityBlock: {
     position: 'absolute',
@@ -398,9 +437,9 @@ const styles = StyleSheet.create({
   },
   tasksLayer: {
     position: 'absolute',
-    left: 80,
+    left: 88,
     right: 16,
-    top: 8,
+    top: 10,
   },
   scheduledTaskCard: {
     position: 'absolute',
@@ -458,6 +497,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1C1C1C',
     padding: 16,
+    marginBottom: 20,
   },
   unscheduledHeader: {
     marginBottom: 14,
@@ -484,7 +524,6 @@ const styles = StyleSheet.create({
   planDayFab: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -502,5 +541,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 15,
+  },
+  timelineEndMarker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: TIMELINE_BOTTOM_PADDING,
+  },
+  endMarkerLine: {
+    flex: 1,
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A2A',
+    marginTop: -12,
   },
 });

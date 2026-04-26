@@ -78,6 +78,13 @@ Current supported push scenarios:
 Implemented:
 
 - hourly timeline
+- full 00:00-24:00 visible range
+- every hour from `00:00` to `23:00` is tappable
+- bottom marker for the end of the day
+- default auto-scroll near the current hour for today
+- non-today default scroll near `06:00`
+- consistent hour row spacing
+- safe bottom spacing after the final hour
 - visually distinct availability blocks
 - scheduled tasks rendered as time blocks
 - unscheduled tasks section
@@ -137,9 +144,14 @@ Implemented:
 
 - `SafeAreaProvider` at app root
 - tab bar respects bottom safe area
-- Android navigation bar forced dark
+- Android navigation bar uses the exact same solid surface color as the app root
+- Android navigation bar is not truly transparent
+- visual blending is done by matching the root surface and removing bottom chrome seams
 - light status bar
 - main screens padded to avoid overlap with bottom navigation/system area
+- planner modals and sheets apply safe-area-aware bottom padding for action buttons
+- `Plan Day` floating button sits above tab bar and Android system navigation on device
+- tab bar background matches the root surface exactly with no top separator line or shadow
 
 ## Native Compatibility
 
@@ -171,6 +183,13 @@ Current example in repo env:
 EXPO_PUBLIC_API_URL="https://planner-v79c.onrender.com"
 ```
 
+Availability API note:
+
+- the mobile app calls `GET ${API_BASE_URL}/availability` with `Authorization: Bearer <token>`
+- if the backend responds with `404`, the user-facing message is `Planner schedule API is unavailable`
+- if the backend responds with `401`, the user-facing message is `Session expired. Please log in again.`
+- the currently deployed Render backend at `planner-v79c.onrender.com` returned `404` for `/availability` during verification, so the service must be redeployed from the latest backend commit
+
 Production note:
 
 - Expo push token registration depends on the EAS project ID embedded in [app.config.ts](/c:/Users/Abdurahmon/planner/app.config.ts)
@@ -183,6 +202,8 @@ Production note:
 - no frontend AI generation/replan UI
 - no frontend payment UI
 - overlap handling in planner UI is still limited
+- cross-midnight routine blocks must still be split manually
 - Android notification styling is still constrained by OS defaults
+- true transparent Android navigation is intentionally not used; the app uses solid-color blending for MIUI/device compatibility
 - push notification reliability still requires real-device APK validation
 - real-device QA is still required

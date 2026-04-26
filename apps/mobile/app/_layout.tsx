@@ -13,6 +13,7 @@ import { configurePushNotificationsAsync } from '../src/lib/pushNotifications';
 import { useStore } from '../src/store/useStore';
 
 const queryClient = new QueryClient();
+const APP_SURFACE_COLOR = '#000000';
 
 export default function RootLayout() {
   useAppBootstrap();
@@ -24,7 +25,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={DarkTheme}>
           <View style={styles.container}>
-            <StatusBar style="light" backgroundColor="#000000" />
+            <StatusBar style="light" backgroundColor={APP_SURFACE_COLOR} />
             <Stack screenOptions={{ headerShown: false, contentStyle: styles.container }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="auth" />
@@ -42,8 +43,10 @@ function useAndroidSystemUi() {
       return;
     }
 
-    void NavigationBar.setBackgroundColorAsync('#000000');
+    void NavigationBar.setBackgroundColorAsync(APP_SURFACE_COLOR);
+    void NavigationBar.setBorderColorAsync(APP_SURFACE_COLOR);
     void NavigationBar.setButtonStyleAsync('light');
+    NavigationBar.setStyle('light');
   }, []);
 }
 
@@ -204,6 +207,6 @@ function resolveNotificationTarget(
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: APP_SURFACE_COLOR,
   },
 });

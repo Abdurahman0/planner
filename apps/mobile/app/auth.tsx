@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as z from 'zod';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useStore } from '../src/store/useStore';
+import { ApiError, UnauthorizedError } from '../src/lib/api';
 
 const authSchema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
@@ -70,7 +71,7 @@ export default function AuthScreen() {
       router.replace('/(tabs)');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Authentication failed';
-      Alert.alert('Authentication Failed', message);
+      Alert.alert(getAuthErrorTitle(error, mode), message);
     }
   };
 
@@ -305,3 +306,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+function getAuthErrorTitle(error: unknown, mode: 'login' | 'register') {
+  if (
+    error instanceof UnauthorizedError
+    || (error instanceof ApiError && error.status === 401)
+  ) {
+    return 'Authentication Failed';
+  }
+
+  if (error instanceof ApiError && error.status === 404) {
+    return 'Planner Unavailable';
+  }
+
+  return mode === 'login' ? 'Sign In Failed' : 'Registration Failed';
+}

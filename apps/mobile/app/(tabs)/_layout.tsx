@@ -6,14 +6,16 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store/useStore';
 
+const APP_SURFACE_COLOR = '#000000';
+
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const user = useStore((state) => state.user);
   const isInitialized = useStore((state) => state.isInitialized);
-  const tabBarBottomPadding = Math.max(insets.bottom, 10);
-  const tabBarHeight = 60 + insets.bottom;
-  const sceneBottomInset = tabBarHeight + 16;
+  const tabBarBottomPadding = Math.max(insets.bottom, 12);
+  const tabBarHeight = 64 + insets.bottom;
+  const sceneBottomInset = tabBarHeight + 28;
 
   useEffect(() => {
     if (isInitialized && !user) {
@@ -30,21 +32,25 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: {
-          backgroundColor: '#000',
+          backgroundColor: APP_SURFACE_COLOR,
           paddingBottom: sceneBottomInset,
         },
-        tabBarBackground: () => <View style={{ flex: 1, backgroundColor: '#000' }} />,
+        tabBarBackground: () => <View style={{ flex: 1, backgroundColor: APP_SURFACE_COLOR }} />,
         tabBarStyle: {
           position: 'absolute',
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: '#000',
-          borderTopColor: '#222',
-          borderTopWidth: 1,
+          backgroundColor: APP_SURFACE_COLOR,
+          overflow: 'hidden',
+          borderTopColor: 'transparent',
+          borderTopWidth: 0,
           height: tabBarHeight,
           paddingBottom: tabBarBottomPadding,
           paddingTop: 8,
+          elevation: 0,
+          shadowOpacity: 0,
+          shadowColor: 'transparent',
         },
         tabBarActiveTintColor: '#A855F7',
         tabBarInactiveTintColor: '#888',

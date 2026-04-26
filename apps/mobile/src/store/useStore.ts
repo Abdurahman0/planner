@@ -411,7 +411,13 @@ async function hydrateAppData(
   const [goals, tasks, availability] = await Promise.all([
     fetchGoals(token),
     fetchTasks(token),
-    fetchAvailabilityRequest(token),
+    fetchAvailabilityRequest(token).catch((error) => {
+      if (error instanceof ApiError && error.status === 404) {
+        return [];
+      }
+
+      throw error;
+    }),
   ]);
   const [notifications, notificationSummary] = await Promise.all([
     fetchNotificationsRequest(token),

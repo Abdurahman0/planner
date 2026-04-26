@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +12,8 @@ import {
 } from 'react-native';
 import { AvailabilitySlot, AvailabilityType } from '@packages/shared';
 import { X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { addMinutesToTime } from '../lib/planner';
 
 interface ScheduleBlockModalProps {
   visible: boolean;
@@ -48,14 +52,13 @@ export function ScheduleBlockModal({
   onDelete,
   isLoading = false,
 }: ScheduleBlockModalProps) {
+  const insets = useSafeAreaInsets();
   const defaultEndTime = useMemo(() => {
     if (!initialStartTime) {
       return '10:00';
     }
 
-    const [hours, minutes] = initialStartTime.split(':').map((value) => Number.parseInt(value, 10));
-    const nextHour = Math.min(hours + 1, 23);
-    return `${nextHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    return addMinutesToTime(initialStartTime, 60);
   }, [initialStartTime]);
 
   const [label, setLabel] = useState('');
@@ -87,85 +90,94 @@ export function ScheduleBlockModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>{slot ? 'Edit Schedule Block' : 'Add Schedule Block'}</Text>
-              <Text style={styles.subtitle}>
-                {selectedDate.toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' })}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <View style={styles.field}>
-              <Text style={styles.label}>Label</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Sleep, Work, Gym..."
-                placeholderTextColor="#555"
-                value={label}
-                onChangeText={setLabel}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Type</Text>
-              <View style={styles.chips}>
-                {availabilityTypes.map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[styles.chip, type === option && styles.chipActive]}
-                    onPress={() => setType(option)}
-                  >
-                    <Text style={[styles.chipText, type === option && styles.chipTextActive]}>
-                      {option.replace('_', ' ')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardContainer}
+        >
+          <View style={styles.sheet}>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>{slot ? 'Edit Schedule Block' : 'Add Schedule Block'}</Text>
+                <Text style={styles.subtitle}>
+                  {selectedDate.toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </Text>
               </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.field, styles.rowField]}>
-                <Text style={styles.label}>Start</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="08:00"
-                  placeholderTextColor="#555"
-                  value={startTime}
-                  onChangeText={setStartTime}
-                  autoCapitalize="none"
-                />
-              </View>
-              <View style={[styles.field, styles.rowField]}>
-                <Text style={styles.label}>End</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="09:00"
-                  placeholderTextColor="#555"
-                  value={endTime}
-                  onChangeText={setEndTime}
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-          </ScrollView>
-
-          <View style={styles.footer}>
-            {slot && onDelete ? (
-              <TouchableOpacity style={styles.deleteButton} onPress={() => void onDelete()} disabled={isLoading}>
-                <Text style={styles.deleteButtonText}>Delete</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <X size={20} color="#fff" />
               </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity style={styles.saveButton} onPress={() => void handleSave()} disabled={isLoading}>
-              <Text style={styles.saveButtonText}>{isLoading ? 'Saving...' : 'Save Block'}</Text>
-            </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={[styles.content, { paddingBottom: 12 }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.field}>
+                <Text style={styles.label}>Label</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Sleep, Work, Gym..."
+                  placeholderTextColor="#555"
+                  value={label}
+                  onChangeText={setLabel}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Type</Text>
+                <View style={styles.chips}>
+                  {availabilityTypes.map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[styles.chip, type === option && styles.chipActive]}
+                      onPress={() => setType(option)}
+                    >
+                      <Text style={[styles.chipText, type === option && styles.chipTextActive]}>
+                        {option.replace('_', ' ')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={[styles.field, styles.rowField]}>
+                  <Text style={styles.label}>Start</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="08:00"
+                    placeholderTextColor="#555"
+                    value={startTime}
+                    onChangeText={setStartTime}
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={[styles.field, styles.rowField]}>
+                  <Text style={styles.label}>End</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="09:00"
+                    placeholderTextColor="#555"
+                    value={endTime}
+                    onChangeText={setEndTime}
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+              {slot && onDelete ? (
+                <TouchableOpacity style={styles.deleteButton} onPress={() => void onDelete()} disabled={isLoading}>
+                  <Text style={styles.deleteButtonText}>Delete</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity style={styles.saveButton} onPress={() => void handleSave()} disabled={isLoading}>
+                <Text style={styles.saveButtonText}>{isLoading ? 'Saving...' : 'Save Block'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -177,13 +189,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.75)',
     justifyContent: 'flex-end',
   },
+  keyboardContainer: {
+    justifyContent: 'flex-end',
+  },
   sheet: {
     backgroundColor: '#050505',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 32,
+    paddingBottom: 0,
     maxHeight: '85%',
     borderTopWidth: 1,
     borderColor: '#1F1F1F',

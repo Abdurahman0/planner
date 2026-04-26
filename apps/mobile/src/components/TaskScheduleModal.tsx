@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Goal, Task, TaskType } from '@packages/shared';
 import { Calendar, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addMinutesToTime } from '../lib/planner';
 
 interface TaskScheduleModalProps {
@@ -58,6 +61,7 @@ export function TaskScheduleModal({
   onUpdate,
   isLoading = false,
 }: TaskScheduleModalProps) {
+  const insets = useSafeAreaInsets();
   const [goalId, setGoalId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -136,205 +140,216 @@ export function TaskScheduleModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>{task ? 'Edit Task' : 'Quick Add Task'}</Text>
-              <Text style={styles.subtitle}>
-                {task ? 'Adjust time, date, or details.' : 'Capture a task fast, then place it into the day.'}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            {!task ? (
-              <View style={styles.field}>
-                <Text style={styles.label}>Goal</Text>
-                {goals.length === 0 ? (
-                  <View style={styles.emptyGoalsState}>
-                    <Text style={styles.emptyGoalsStateText}>Create a goal first. Tasks must belong to a goal.</Text>
-                  </View>
-                ) : (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.goalChips}>
-                    {goals.map((goal) => (
-                      <TouchableOpacity
-                        key={goal.id}
-                        style={[styles.goalChip, goalId === goal.id && styles.goalChipActive]}
-                        onPress={() => setGoalId(goal.id)}
-                      >
-                        <Text style={[styles.goalChipText, goalId === goal.id && styles.goalChipTextActive]} numberOfLines={1}>
-                          {goal.title}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardContainer}
+        >
+          <View style={styles.sheet}>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>{task ? 'Edit Task' : 'Quick Add Task'}</Text>
+                <Text style={styles.subtitle}>
+                  {task ? 'Adjust time, date, or details.' : 'Capture a task fast, then place it into the day.'}
+                </Text>
               </View>
-            ) : null}
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Title</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="What do you need to do?"
-                placeholderTextColor="#555"
-                value={title}
-                onChangeText={setTitle}
-                autoFocus
-                returnKeyType="next"
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Planned Date</Text>
-              <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
-                <Calendar size={16} color="#A855F7" />
-                <Text style={styles.dateButtonText}>{plannedDate.toLocaleDateString()}</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <X size={20} color="#fff" />
               </TouchableOpacity>
-              {showDatePicker ? (
-                <DateTimePicker
-                  value={plannedDate}
-                  mode="date"
-                  display="default"
-                  onChange={(_event, nextDate) => {
-                    setShowDatePicker(false);
-
-                    if (nextDate) {
-                      setPlannedDate(nextDate);
-                    }
-                  }}
-                />
-              ) : null}
             </View>
 
-            <View style={styles.row}>
-              <View style={[styles.field, styles.rowField]}>
-                <Text style={styles.label}>Start</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Optional HH:mm"
-                  placeholderTextColor="#555"
-                  value={startTime}
-                  onChangeText={setStartTime}
-                />
-              </View>
-              <View style={[styles.field, styles.rowField]}>
-                <Text style={styles.label}>End</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Auto-filled"
-                  placeholderTextColor="#555"
-                  value={endTime}
-                  onChangeText={setEndTime}
-                />
-              </View>
-            </View>
-
-            {taskType === TaskType.TIME_BASED ? (
-              <View style={styles.field}>
-                <Text style={styles.label}>Quick Duration</Text>
-                <View style={styles.quickOptionsRow}>
-                  {[30, 60, 90, 120].map((minutes) => (
-                    <Pressable
-                      key={minutes}
-                      style={({ pressed }) => [
-                        styles.quickOption,
-                        estimatedMinutes === String(minutes) && styles.quickOptionActive,
-                        pressed && styles.quickOptionPressed,
-                      ]}
-                      onPress={() => setEstimatedMinutes(String(minutes))}
-                    >
-                      <Text
-                        style={[
-                          styles.quickOptionText,
-                          estimatedMinutes === String(minutes) && styles.quickOptionTextActive,
-                        ]}
-                      >
-                        {minutes}m
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
-            <TouchableOpacity style={styles.advancedToggle} onPress={() => setShowAdvancedOptions((value) => !value)}>
-              <Text style={styles.advancedToggleText}>
-                {showAdvancedOptions ? 'Hide extra options' : 'More options'}
-              </Text>
-            </TouchableOpacity>
-
-            {showAdvancedOptions ? (
-              <>
+            <ScrollView
+              contentContainerStyle={[styles.content, { paddingBottom: 12 }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {!task ? (
                 <View style={styles.field}>
-                  <Text style={styles.label}>Description</Text>
+                  <Text style={styles.label}>Goal</Text>
+                  {goals.length === 0 ? (
+                    <View style={styles.emptyGoalsState}>
+                      <Text style={styles.emptyGoalsStateText}>Create a goal first. Tasks must belong to a goal.</Text>
+                    </View>
+                  ) : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.goalChips}>
+                      {goals.map((goal) => (
+                        <TouchableOpacity
+                          key={goal.id}
+                          style={[styles.goalChip, goalId === goal.id && styles.goalChipActive]}
+                          onPress={() => setGoalId(goal.id)}
+                        >
+                          <Text style={[styles.goalChipText, goalId === goal.id && styles.goalChipTextActive]} numberOfLines={1}>
+                            {goal.title}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              ) : null}
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Title</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="What do you need to do?"
+                  placeholderTextColor="#555"
+                  value={title}
+                  onChangeText={setTitle}
+                  autoFocus
+                  returnKeyType="next"
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Planned Date</Text>
+                <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
+                  <Calendar size={16} color="#A855F7" />
+                  <Text style={styles.dateButtonText}>{plannedDate.toLocaleDateString()}</Text>
+                </TouchableOpacity>
+                {showDatePicker ? (
+                  <DateTimePicker
+                    value={plannedDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_event, nextDate) => {
+                      setShowDatePicker(false);
+
+                      if (nextDate) {
+                        setPlannedDate(nextDate);
+                      }
+                    }}
+                  />
+                ) : null}
+              </View>
+
+              <View style={styles.row}>
+                <View style={[styles.field, styles.rowField]}>
+                  <Text style={styles.label}>Start</Text>
                   <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Optional details"
+                    style={styles.input}
+                    placeholder="Optional HH:mm"
                     placeholderTextColor="#555"
-                    value={description}
-                    onChangeText={setDescription}
-                    multiline
+                    value={startTime}
+                    onChangeText={setStartTime}
                   />
                 </View>
+                <View style={[styles.field, styles.rowField]}>
+                  <Text style={styles.label}>End</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Auto-filled"
+                    placeholderTextColor="#555"
+                    value={endTime}
+                    onChangeText={setEndTime}
+                  />
+                </View>
+              </View>
 
+              {taskType === TaskType.TIME_BASED ? (
                 <View style={styles.field}>
-                  <Text style={styles.label}>Task Type</Text>
-                  <View style={styles.segmented}>
-                    {[TaskType.TIME_BASED, TaskType.UNIT_BASED].map((option) => (
-                      <TouchableOpacity
-                        key={option}
-                        style={[styles.segmentButton, taskType === option && styles.segmentButtonActive]}
-                        onPress={() => setTaskType(option)}
+                  <Text style={styles.label}>Quick Duration</Text>
+                  <View style={styles.quickOptionsRow}>
+                    {[30, 60, 90, 120].map((minutes) => (
+                      <Pressable
+                        key={minutes}
+                        style={({ pressed }) => [
+                          styles.quickOption,
+                          estimatedMinutes === String(minutes) && styles.quickOptionActive,
+                          pressed && styles.quickOptionPressed,
+                        ]}
+                        onPress={() => setEstimatedMinutes(String(minutes))}
                       >
-                        <Text style={[styles.segmentButtonText, taskType === option && styles.segmentButtonTextActive]}>
-                          {option === TaskType.TIME_BASED ? 'Time-based' : 'Unit-based'}
+                        <Text
+                          style={[
+                            styles.quickOptionText,
+                            estimatedMinutes === String(minutes) && styles.quickOptionTextActive,
+                          ]}
+                        >
+                          {minutes}m
                         </Text>
-                      </TouchableOpacity>
+                      </Pressable>
                     ))}
                   </View>
                 </View>
+              ) : null}
 
-                {taskType === TaskType.UNIT_BASED ? (
-                  <View style={styles.row}>
-                    <View style={[styles.field, styles.rowField]}>
-                      <Text style={styles.label}>Target Value</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="1"
-                        placeholderTextColor="#555"
-                        keyboardType="numeric"
-                        value={targetValue}
-                        onChangeText={setTargetValue}
-                      />
-                    </View>
-                    <View style={[styles.field, styles.rowField]}>
-                      <Text style={styles.label}>Unit</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="chapters"
-                        placeholderTextColor="#555"
-                        value={targetUnit}
-                        onChangeText={setTargetUnit}
-                      />
+              <TouchableOpacity style={styles.advancedToggle} onPress={() => setShowAdvancedOptions((value) => !value)}>
+                <Text style={styles.advancedToggleText}>
+                  {showAdvancedOptions ? 'Hide extra options' : 'More options'}
+                </Text>
+              </TouchableOpacity>
+
+              {showAdvancedOptions ? (
+                <>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Description</Text>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      placeholder="Optional details"
+                      placeholderTextColor="#555"
+                      value={description}
+                      onChangeText={setDescription}
+                      multiline
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Task Type</Text>
+                    <View style={styles.segmented}>
+                      {[TaskType.TIME_BASED, TaskType.UNIT_BASED].map((option) => (
+                        <TouchableOpacity
+                          key={option}
+                          style={[styles.segmentButton, taskType === option && styles.segmentButtonActive]}
+                          onPress={() => setTaskType(option)}
+                        >
+                          <Text style={[styles.segmentButtonText, taskType === option && styles.segmentButtonTextActive]}>
+                            {option === TaskType.TIME_BASED ? 'Time-based' : 'Unit-based'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
                     </View>
                   </View>
-                ) : null}
-              </>
-            ) : null}
-          </ScrollView>
 
-          <TouchableOpacity
-            style={[styles.submitButton, (!task && goals.length === 0) && styles.submitButtonDisabled]}
-            onPress={() => void handleSubmit()}
-            disabled={isLoading || (!task && goals.length === 0)}
-          >
-            <Text style={styles.submitButtonText}>{isLoading ? 'Saving...' : task ? 'Save Task' : 'Create Task'}</Text>
-          </TouchableOpacity>
-        </View>
+                  {taskType === TaskType.UNIT_BASED ? (
+                    <View style={styles.row}>
+                      <View style={[styles.field, styles.rowField]}>
+                        <Text style={styles.label}>Target Value</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="1"
+                          placeholderTextColor="#555"
+                          keyboardType="numeric"
+                          value={targetValue}
+                          onChangeText={setTargetValue}
+                        />
+                      </View>
+                      <View style={[styles.field, styles.rowField]}>
+                        <Text style={styles.label}>Unit</Text>
+                        <TextInput
+                          style={styles.input}
+                          placeholder="chapters"
+                          placeholderTextColor="#555"
+                          value={targetUnit}
+                          onChangeText={setTargetUnit}
+                        />
+                      </View>
+                    </View>
+                  ) : null}
+                </>
+              ) : null}
+            </ScrollView>
+
+            <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+              <TouchableOpacity
+                style={[styles.submitButton, (!task && goals.length === 0) && styles.submitButtonDisabled]}
+                onPress={() => void handleSubmit()}
+                disabled={isLoading || (!task && goals.length === 0)}
+              >
+                <Text style={styles.submitButtonText}>{isLoading ? 'Saving...' : task ? 'Save Task' : 'Create Task'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -346,13 +361,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.75)',
     justifyContent: 'flex-end',
   },
+  keyboardContainer: {
+    justifyContent: 'flex-end',
+  },
   sheet: {
     backgroundColor: '#050505',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 32,
+    paddingBottom: 0,
     maxHeight: '88%',
     borderTopWidth: 1,
     borderColor: '#1F1F1F',
@@ -524,7 +542,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    marginTop: 24,
   },
   submitButtonDisabled: {
     opacity: 0.5,
@@ -533,5 +550,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 16,
+  },
+  footer: {
+    paddingTop: 16,
   },
 });

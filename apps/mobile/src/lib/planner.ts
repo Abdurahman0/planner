@@ -1,9 +1,10 @@
 import { AvailabilitySlot, AvailabilityType, Task, TaskStatus } from '@packages/shared';
 
-export const PLANNER_START_HOUR = 6;
+export const PLANNER_START_HOUR = 0;
 export const PLANNER_END_HOUR = 24;
 export const TIMELINE_MINUTE_HEIGHT = 1.2;
 export const TIMELINE_HOUR_HEIGHT = 60 * TIMELINE_MINUTE_HEIGHT;
+export const TIMELINE_BOTTOM_PADDING = 36;
 
 export function isSameDay(left: Date, right: Date) {
   return left.toDateString() === right.toDateString();
@@ -19,7 +20,12 @@ export function formatTimeLabel(time: string) {
 }
 
 export function minutesToTime(minutes: number) {
-  const normalized = Math.max(0, Math.min(minutes, 23 * 60 + 59));
+  const normalized = Math.max(0, Math.min(minutes, PLANNER_END_HOUR * 60));
+
+  if (normalized === PLANNER_END_HOUR * 60) {
+    return '24:00';
+  }
+
   const hours = Math.floor(normalized / 60);
   const mins = normalized % 60;
 
@@ -42,13 +48,17 @@ export function getSuggestedPlannerStartTime(selectedDate: Date) {
 }
 
 export function getTimelineTopOffset(time: string) {
-  return (parseTimeToMinutes(time) - PLANNER_START_HOUR * 60) * TIMELINE_MINUTE_HEIGHT;
+  const clampedMinutes = Math.max(PLANNER_START_HOUR * 60, Math.min(parseTimeToMinutes(time), PLANNER_END_HOUR * 60));
+  return (clampedMinutes - PLANNER_START_HOUR * 60) * TIMELINE_MINUTE_HEIGHT;
 }
 
 export function getTimelineHeight(startTime: string, endTime: string) {
+  const startMinutes = Math.max(PLANNER_START_HOUR * 60, Math.min(parseTimeToMinutes(startTime), PLANNER_END_HOUR * 60));
+  const endMinutes = Math.min(PLANNER_END_HOUR * 60, Math.max(parseTimeToMinutes(endTime), PLANNER_START_HOUR * 60));
+
   return Math.max(
     32,
-    (parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime)) * TIMELINE_MINUTE_HEIGHT,
+    (endMinutes - startMinutes) * TIMELINE_MINUTE_HEIGHT,
   );
 }
 
@@ -150,5 +160,5 @@ export function getDayScheduleDensity(tasks: Task[]) {
     return total + (parseTimeToMinutes(task.endTime) - parseTimeToMinutes(task.startTime));
   }, 0);
 
-  return Math.min(100, Math.round((scheduledMinutes / (12 * 60)) * 100));
+  return Math.min(100, Math.round((scheduledMinutes / ((PLANNER_END_HOUR - PLANNER_START_HOUR) * 60)) * 100));
 }

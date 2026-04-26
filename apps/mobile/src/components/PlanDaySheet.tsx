@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CalendarClock, ListTodo, MoonStar, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface PlanDaySheetProps {
   visible: boolean;
@@ -19,10 +20,12 @@ export function PlanDaySheet({
   onAddUnscheduledTask,
   onAddRoutineBlock,
 }: PlanDaySheetProps) {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Plan Day</Text>
@@ -39,7 +42,7 @@ export function PlanDaySheet({
             <CalendarClock size={20} color="#fff" />
             <View style={styles.actionContent}>
               <Text style={styles.primaryActionTitle}>Schedule a task</Text>
-              <Text style={styles.primaryActionSubtitle}>Drop a new task directly into today’s timeline.</Text>
+              <Text style={styles.primaryActionSubtitle}>Drop a new task directly into today's timeline.</Text>
             </View>
           </TouchableOpacity>
 
