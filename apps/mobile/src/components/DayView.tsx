@@ -46,7 +46,7 @@ export const DayView: React.FC<DayViewProps> = ({
   const unscheduledTasks = getUnscheduledTasks(dayTasks);
   const dayAvailability = getAvailabilityForDate(availability, selectedDate);
   const timelineHeight = (PLANNER_END_HOUR - PLANNER_START_HOUR) * TIMELINE_HOUR_HEIGHT;
-  const contentBottomPadding = 16;
+  const contentBottomPadding = 56;
   const selectedDateKey = selectedDate.toDateString();
   const defaultScrollHour = useMemo(() => {
     const now = new Date();

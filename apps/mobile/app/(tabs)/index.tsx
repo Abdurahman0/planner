@@ -1,15 +1,16 @@
 import { Alert, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useEffect } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
 import { GoalCard } from '../../src/components/GoalCard';
 import { ProgressWidget } from '../../src/components/ProgressWidget';
 import { TaskItem } from '../../src/components/TaskItem';
 import { TaskStatus } from '@packages/shared';
 import { CompletionChart } from '../../src/components/charts/CompletionChart';
+import { CalendarClock } from 'lucide-react-native';
+import { FLOATING_CTA_CLEARANCE, FloatingTabCta } from '../../src/components/FloatingTabCta';
 
 export default function Dashboard() {
-  const insets = useSafeAreaInsets();
   const goals = useStore((state) => state.goals);
   const tasks = useStore((state) => state.tasks);
   const notificationSummary = useStore((state) => state.notificationSummary);
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const fetchTasks = useStore((state) => state.fetchTasks);
   const fetchNotificationSummary = useStore((state) => state.fetchNotificationSummary);
   const updateTaskStatus = useStore((state) => state.updateTaskStatus);
+  const router = useRouter();
 
   const today = new Date().toDateString();
   const todayTasks = tasks.filter(t => new Date(t.plannedDate).toDateString() === today);
@@ -46,53 +48,59 @@ export default function Dashboard() {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
-    >
-      <View style={styles.innerContainer}>
-        <View style={styles.header}>
-          <Text style={styles.greeting}>Today</Text>
-        <Text style={styles.subtitle}>
-          {new Date().toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </Text>
-      </View>
-
-      <ProgressWidget
-        completionRate={notificationSummary?.todayCompletionRate ?? 0}
-        currentStreak={notificationSummary?.currentStreak ?? 0}
-      />
-
-      <View style={styles.section}>
-        <CompletionChart tasks={tasks} />
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Today's Tasks</Text>
-          <Text style={styles.taskCount}>{todayTasks.filter(t => t.status === TaskStatus.DONE).length}/{todayTasks.length}</Text>
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: FLOATING_CTA_CLEARANCE }]}
+      >
+        <View style={styles.innerContainer}>
+          <View style={styles.header}>
+            <Text style={styles.greeting}>Today</Text>
+          <Text style={styles.subtitle}>
+            {new Date().toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </Text>
         </View>
-        {todayTasks.length === 0 ? (
-          <Text style={styles.emptyText}>{isLoading ? 'Loading tasks...' : 'No tasks for today'}</Text>
-        ) : (
-          todayTasks.map((task) => (
-            <TaskItem 
-              key={task.id} 
-              task={task} 
-              onToggle={() => void handleTaskDone(task.id)} 
-            />
-          ))
-        )}
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Active Goals</Text>
-        {goals.map((goal) => (
-          <GoalCard key={goal.id} goal={goal} />
-        ))}
-      </View>
-      </View>
-    </ScrollView>
+        <ProgressWidget
+          completionRate={notificationSummary?.todayCompletionRate ?? 0}
+          currentStreak={notificationSummary?.currentStreak ?? 0}
+        />
+
+        <View style={styles.section}>
+          <CompletionChart tasks={tasks} />
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Today's Tasks</Text>
+            <Text style={styles.taskCount}>{todayTasks.filter(t => t.status === TaskStatus.DONE).length}/{todayTasks.length}</Text>
+          </View>
+          {todayTasks.length === 0 ? (
+            <Text style={styles.emptyText}>{isLoading ? 'Loading tasks...' : 'No tasks for today'}</Text>
+          ) : (
+            todayTasks.map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onToggle={() => void handleTaskDone(task.id)}
+              />
+            ))
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Active Goals</Text>
+          {goals.map((goal) => (
+            <GoalCard key={goal.id} goal={goal} />
+          ))}
+        </View>
+        </View>
+      </ScrollView>
+      <FloatingTabCta
+        label="Quick plan"
+        icon={<CalendarClock size={18} color="#fff" />}
+        onPress={() => router.push('/(tabs)/calendar')}
+      />
+    </View>
   );
 }
 

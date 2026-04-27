@@ -12,7 +12,8 @@ import { NotificationType } from '@packages/shared';
 import { useStore } from '../src/store/useStore';
 
 const queryClient = new QueryClient();
-const APP_SURFACE_COLOR = '#000000';
+const APP_BACKGROUND_COLOR = '#000000';
+const TRANSPARENT_NAVIGATION_BAR = '#00000000';
 
 export default function RootLayout() {
   return (
@@ -34,7 +35,7 @@ function AppShell() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={DarkTheme}>
         <View style={styles.container}>
-          <StatusBar style="light" backgroundColor={APP_SURFACE_COLOR} />
+          <StatusBar style="light" translucent backgroundColor={TRANSPARENT_NAVIGATION_BAR} />
           <Stack screenOptions={{ headerShown: false, contentStyle: styles.container }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="auth" />
@@ -76,10 +77,17 @@ function useAndroidSystemUi() {
       return;
     }
 
-    void NavigationBar.setBackgroundColorAsync(APP_SURFACE_COLOR);
-    void NavigationBar.setBorderColorAsync(APP_SURFACE_COLOR);
-    void NavigationBar.setButtonStyleAsync('light');
-    NavigationBar.setStyle('light');
+    void (async () => {
+      try {
+        await NavigationBar.setPositionAsync('absolute');
+        await NavigationBar.setBackgroundColorAsync(TRANSPARENT_NAVIGATION_BAR);
+        await NavigationBar.setButtonStyleAsync('light');
+        await NavigationBar.setBehaviorAsync('overlay-swipe');
+        NavigationBar.setStyle('light');
+      } catch {
+        // Keep Android startup resilient if a device/runtime does not support every nav-bar call.
+      }
+    })();
   }, []);
 }
 
@@ -278,7 +286,7 @@ function resolveNotificationTargetFromData(
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: APP_SURFACE_COLOR,
+    backgroundColor: APP_BACKGROUND_COLOR,
   },
   noticeBanner: {
     position: 'absolute',

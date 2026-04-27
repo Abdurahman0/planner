@@ -8,6 +8,9 @@ export const NOTIFICATION_PERMISSION_MESSAGE = 'Enable notifications to receive 
 
 export interface PushRegistrationResult {
   permissionStatus: 'granted' | 'denied' | 'unavailable';
+  projectIdPresent: boolean;
+  tokenCreated: boolean;
+  registrationError?: string;
   registration?: {
     token: string;
     platform: 'ios' | 'android' | 'expo';
@@ -43,6 +46,8 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
   if (Platform.OS === 'web') {
     return {
       permissionStatus: 'unavailable',
+      projectIdPresent: false,
+      tokenCreated: false,
     };
   }
 
@@ -62,38 +67,80 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
   if (finalStatus !== 'granted') {
     return {
       permissionStatus: 'denied',
+      projectIdPresent: false,
+      tokenCreated: false,
     };
   }
 
   try {
     const projectId = resolveExpoProjectId();
-    const pushToken = projectId
-      ? await Notifications.getExpoPushTokenAsync({ projectId })
-      : await Notifications.getExpoPushTokenAsync();
-    devLog('Expo push token created', Boolean(pushToken.data));
+    const projectIdPresent = Boolean(projectId);
+    devLog('Expo project id present', projectIdPresent);
+
+    if (!projectId) {
+      return {
+        permissionStatus: 'granted',
+        projectIdPresent: false,
+        tokenCreated: false,
+        registrationError: 'Push project ID is missing in the APK config.',
+      };
+    }
+
+    const pushToken = await Notifications.getExpoPushTokenAsync({ projectId });
+    const tokenCreated = isExpoPushToken(pushToken.data);
+    devLog('Expo push token created', tokenCreated);
 
     return {
       permissionStatus: 'granted',
+      projectIdPresent,
+      tokenCreated,
+      ...(tokenCreated ? {} : { registrationError: 'Expo returned an invalid push token.' }),
+      ...(tokenCreated ? {
       registration: {
         token: pushToken.data,
         platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'expo',
       },
+      } : {}),
     };
-  } catch {
+  } catch (error) {
     devLog('Expo push token creation failed', true);
     return {
       permissionStatus: 'granted',
+      projectIdPresent: Boolean(resolveExpoProjectId()),
+      tokenCreated: false,
+      registrationError: extractSafePushError(error),
     };
   }
 }
 
 function resolveExpoProjectId() {
   const expoProjectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const easProjectId = Constants.easConfig?.projectId;
   const processEnv = typeof process !== 'undefined'
     ? process.env?.EXPO_PUBLIC_EXPO_PROJECT_ID ?? process.env?.VITE_EXPO_PROJECT_ID
     : undefined;
 
-  return typeof expoProjectId === 'string' ? expoProjectId : processEnv ?? undefined;
+  if (typeof expoProjectId === 'string' && expoProjectId.trim()) {
+    return expoProjectId;
+  }
+
+  if (typeof easProjectId === 'string' && easProjectId.trim()) {
+    return easProjectId;
+  }
+
+  return processEnv ?? undefined;
+}
+
+function isExpoPushToken(token: string) {
+  return /^(ExponentPushToken|ExpoPushToken)\[[^\]\s]+\]$/.test(token);
+}
+
+function extractSafePushError(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  return 'Unable to create an Expo push token on this device.';
 }
 
 function devLog(label: string, value: unknown) {

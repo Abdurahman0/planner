@@ -62,6 +62,8 @@ export function TaskScheduleModal({
   isLoading = false,
 }: TaskScheduleModalProps) {
   const insets = useSafeAreaInsets();
+  const footerPaddingBottom = insets.bottom + 16;
+  const scrollContentPaddingBottom = footerPaddingBottom + 96;
   const [goalId, setGoalId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -158,8 +160,10 @@ export function TaskScheduleModal({
             </View>
 
             <ScrollView
-              contentContainerStyle={[styles.content, { paddingBottom: 12 }]}
+              style={styles.scrollArea}
+              contentContainerStyle={[styles.content, { paddingBottom: scrollContentPaddingBottom }]}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
               showsVerticalScrollIndicator={false}
             >
               {!task ? (
@@ -339,7 +343,7 @@ export function TaskScheduleModal({
               ) : null}
             </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={[styles.footer, { paddingBottom: footerPaddingBottom }]}>
               <TouchableOpacity
                 style={[styles.submitButton, (!task && goals.length === 0) && styles.submitButtonDisabled]}
                 onPress={() => void handleSubmit()}
@@ -362,6 +366,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   keyboardContainer: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -371,9 +376,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 0,
-    maxHeight: '88%',
+    maxHeight: '92%',
     borderTopWidth: 1,
     borderColor: '#1F1F1F',
+  },
+  scrollArea: {
+    flexGrow: 0,
   },
   header: {
     flexDirection: 'row',
@@ -423,6 +431,7 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 88,
     textAlignVertical: 'top',
+    paddingTop: 14,
   },
   goalChips: {
     gap: 8,

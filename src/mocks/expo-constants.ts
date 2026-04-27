@@ -18,4 +18,11 @@ const expoConfig = {
 
 export default {
   expoConfig,
+  easConfig: {
+    projectId:
+      typeof process !== 'undefined'
+        ? process.env?.EXPO_PUBLIC_EXPO_PROJECT_ID
+          ?? process.env?.VITE_EXPO_PROJECT_ID
+        : undefined,
+  },
 };

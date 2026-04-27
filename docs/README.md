@@ -38,6 +38,7 @@ Current maturity level:
 - payments backend: Click, Payme, webhook-driven upgrades
 - notifications backend: reminders, missed-task alerts, streaks, device registration
 - backend-driven Expo push notifications with test-push and cron-triggered sweep endpoints
+- real-device push debugging path in Profile for permission / project ID / token / registration verification
 - mobile auth/goals/tasks/availability/notifications integration
 - Android-safe-area and system navigation fixes
 - Expo/EAS build configuration at repo root
@@ -113,6 +114,14 @@ EXPO_PUBLIC_API_URL="https://planner-v79c.onrender.com"
 ```
 
 For EAS preview builds, `EXPO_PUBLIC_API_URL` must be set in the EAS environment so the APK resolves the backend correctly.
+
+Push delivery note:
+
+- Expo push notifications on the APK require:
+  - notification permission on-device
+  - valid Expo push token generation
+  - working backend device registration
+  - deployed backend routes for `POST /notifications/devices` and `POST /notifications/test-push`
 
 ## Quick Links
 

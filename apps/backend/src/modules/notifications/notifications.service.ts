@@ -225,7 +225,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async registerDevice(userId: string, dto: RegisterDeviceDto) {
-    return this.prisma.userDevice.upsert({
+    await this.prisma.userDevice.upsert({
       where: { token: dto.token },
       update: {
         userId,
@@ -236,13 +236,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         token: dto.token,
         platform: dto.platform,
       },
-      select: {
-        id: true,
-        token: true,
-        platform: true,
-        createdAt: true,
-      },
     });
+
+    return {
+      status: 'ok' as const,
+      registered: true,
+    };
   }
 
   async markRead(userId: string, notificationId: string) {
@@ -313,6 +312,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       return {
         status: 'ok',
         deviceCount: 0,
+        pushesAttempted: 0,
         sentCount: 0,
         invalidTokenCount: 0,
       };

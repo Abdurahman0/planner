@@ -90,6 +90,19 @@ export interface UpdateAvailabilityInput {
   label?: string | null;
 }
 
+export interface TestPushResult {
+  status: string;
+  deviceCount: number;
+  pushesAttempted: number;
+  sentCount: number;
+  invalidTokenCount: number;
+}
+
+export interface RegisterDeviceResult {
+  status: string;
+  registered: boolean;
+}
+
 interface ApiGoal {
   id: string;
   userId: string;
@@ -389,10 +402,17 @@ export async function refreshNotificationsRequest(token: string) {
 }
 
 export async function registerDeviceRequest(token: string, input: RegisterDeviceInput) {
-  return request('/notifications/devices', {
+  return request<RegisterDeviceResult>('/notifications/devices', {
     method: 'POST',
     token,
     body: JSON.stringify(input),
+  });
+}
+
+export async function sendTestPushRequest(token: string) {
+  return request<TestPushResult>('/notifications/test-push', {
+    method: 'POST',
+    token,
   });
 }
 

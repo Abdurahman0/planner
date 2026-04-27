@@ -190,6 +190,9 @@ Implemented:
 - `POST /notifications/refresh` is available for authenticated manual QA
 - `POST /notifications/test-push` sends a direct test push to the authenticated user's registered Expo devices
 - `POST /notifications/run-sweep` exists for internal scheduler/cron use and requires `x-internal-cron-secret`
+- `POST /notifications/devices` returns a safe registration summary:
+  - `status`
+  - `registered`
 - `POST /notifications/test-push` returns a safe delivery summary:
   - `deviceCount`
   - `pushesAttempted`
@@ -248,6 +251,9 @@ Expo push payload shape:
 Security properties:
 
 - device registration remains JWT-protected
+- test-push remains JWT-protected and only targets the authenticated user's devices
+- device registration never accepts a client-controlled `userId`
+- Expo device tokens are validated before storage and empty/invalid values are rejected
 - push payloads contain routing metadata only
 - no secrets or private account data are sent in Expo push payloads
 - notification access remains user-scoped
@@ -294,6 +300,7 @@ Route verification after redeploy:
 
 - `GET /health`
 - `GET /availability` with Bearer token
+- `POST /notifications/devices` with Bearer token
 - `POST /notifications/test-push` with Bearer token
 - `POST /notifications/run-sweep` with `x-internal-cron-secret`
 

@@ -89,12 +89,14 @@ Current mobile planner behavior:
 - user can define routine blocks like sleep, work, study, eating, and custom blocks
 - scheduled tasks appear inside the hourly timeline
 - unscheduled tasks stay in a separate section until placed
+- each main tab now has a context-aware floating CTA for the primary next action
 
 Current notification behavior:
 
-- the app keeps an in-app notification list for recent planner events
-- backend-generated Expo push notifications can also surface as Android system notifications
+- the app keeps an in-app record list for recent planner events
+- backend-generated Expo push notifications are the primary user-facing notification surface
 - closed-app/background delivery depends on backend sweep or cron execution, not just the app UI
+- Profile includes a developer-safe test push action and debug summary for real-device verification
 - task reminders can surface as Android system notifications
 - missed-task and progress feedback can surface as Android system notifications
 - streak rewards can surface as Android system notifications

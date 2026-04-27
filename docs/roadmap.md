@@ -20,6 +20,9 @@
 - planner modal safe-area fixes
 - full 24-hour day timeline
 - React Native chart/native compatibility fixes
+- shared floating CTA system on main tab screens
+- Profile test-push UX for real device notification validation
+- Push Debug profile diagnostics for permission / project ID / token / registration status
 - auth screen UX hardening:
   - password visibility toggle
   - keyboard-safe layout
@@ -40,9 +43,11 @@
 - planner UX polish
 - full-day planner QA on real devices
 - push notification real-device validation
+- Expo push device registration validation on real APKs
 - planner bottom spacing and floating action tuning on Android
 - Render deployment verification for newly added API modules
 - background/closed-app push verification on deployed backend
+- real Android keyboard QA for planner/task modals
 - Render redeploy verification for `/availability`, `/notifications/test-push`, and `/notifications/run-sweep`
 
 ## NEXT

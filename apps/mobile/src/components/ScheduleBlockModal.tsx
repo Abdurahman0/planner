@@ -53,6 +53,8 @@ export function ScheduleBlockModal({
   isLoading = false,
 }: ScheduleBlockModalProps) {
   const insets = useSafeAreaInsets();
+  const footerPaddingBottom = insets.bottom + 16;
+  const scrollContentPaddingBottom = footerPaddingBottom + 48;
   const defaultEndTime = useMemo(() => {
     if (!initialStartTime) {
       return '10:00';
@@ -108,8 +110,10 @@ export function ScheduleBlockModal({
             </View>
 
             <ScrollView
-              contentContainerStyle={[styles.content, { paddingBottom: 12 }]}
+              style={styles.scrollArea}
+              contentContainerStyle={[styles.content, { paddingBottom: scrollContentPaddingBottom }]}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.field}>
@@ -166,7 +170,7 @@ export function ScheduleBlockModal({
               </View>
             </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={[styles.footer, { paddingBottom: footerPaddingBottom }]}>
               {slot && onDelete ? (
                 <TouchableOpacity style={styles.deleteButton} onPress={() => void onDelete()} disabled={isLoading}>
                   <Text style={styles.deleteButtonText}>Delete</Text>
@@ -190,6 +194,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   keyboardContainer: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -199,9 +204,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 0,
-    maxHeight: '85%',
+    maxHeight: '90%',
     borderTopWidth: 1,
     borderColor: '#1F1F1F',
+  },
+  scrollArea: {
+    flexGrow: 0,
   },
   header: {
     flexDirection: 'row',

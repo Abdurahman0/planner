@@ -1,13 +1,12 @@
 import { Alert, View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store/useStore';
 import { GoalCard } from '../../src/components/GoalCard';
 import { Plus } from 'lucide-react-native';
+import { FLOATING_CTA_CLEARANCE, FloatingTabCta } from '../../src/components/FloatingTabCta';
 
 export default function GoalsScreen() {
-  const insets = useSafeAreaInsets();
   const goals = useStore((state) => state.goals);
   const isLoading = useStore((state) => state.isLoading);
   const fetchGoals = useStore((state) => state.fetchGoals);
@@ -29,19 +28,13 @@ export default function GoalsScreen() {
       <View style={styles.innerContainer}>
         <View style={styles.header}>
           <Text style={styles.title}>Your Goals</Text>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => router.push('/goals/create')}
-          >
-            <Plus size={24} color="#fff" />
-          </TouchableOpacity>
         </View>
 
         <FlatList
           data={goals}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <GoalCard goal={item} />}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: FLOATING_CTA_CLEARANCE }]}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>{isLoading ? 'Loading goals...' : 'No goals yet. Start by creating one!'}</Text>
@@ -49,6 +42,11 @@ export default function GoalsScreen() {
           }
         />
       </View>
+      <FloatingTabCta
+        label="New goal"
+        icon={<Plus size={18} color="#fff" />}
+        onPress={() => router.push('/goals/create')}
+      />
     </View>
   );
 }
@@ -75,14 +73,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#A855F7',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   content: {
     padding: 20,

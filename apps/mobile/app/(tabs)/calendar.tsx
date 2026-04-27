@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, StyleSheet, View } from 'react-native';
 import { AvailabilitySlot, Goal, GoalStatus, Task } from '@packages/shared';
 import { Sparkles } from 'lucide-react-native';
 import { useStore } from '../../src/store/useStore';
@@ -11,10 +10,10 @@ import { DayView } from '../../src/components/DayView';
 import { ScheduleBlockModal } from '../../src/components/ScheduleBlockModal';
 import { TaskScheduleModal } from '../../src/components/TaskScheduleModal';
 import { PlanDaySheet } from '../../src/components/PlanDaySheet';
+import { FloatingTabCta } from '../../src/components/FloatingTabCta';
 import { getSuggestedPlannerStartTime } from '../../src/lib/planner';
 
 export default function CalendarScreen() {
-  const insets = useSafeAreaInsets();
   const tasks = useStore((state) => state.tasks);
   const goals = useStore((state) => state.goals);
   const availability = useStore((state) => state.availability);
@@ -35,8 +34,6 @@ export default function CalendarScreen() {
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [prefilledStartTime, setPrefilledStartTime] = useState<string | undefined>(undefined);
-  const tabBarHeight = 64 + insets.bottom;
-  const planDayFabBottom = tabBarHeight + 8;
 
   useEffect(() => {
     void Promise.all([fetchGoals(), fetchTasks(), fetchAvailability()]).catch((error) => {
@@ -218,10 +215,11 @@ export default function CalendarScreen() {
       />
       <View style={styles.content}>{renderView()}</View>
       {view === 'day' ? (
-        <TouchableOpacity style={[styles.planDayFab, { bottom: planDayFabBottom }]} onPress={() => setPlanDaySheetVisible(true)}>
-          <Sparkles size={18} color="#fff" />
-          <Text style={styles.planDayFabText}>Plan Day</Text>
-        </TouchableOpacity>
+        <FloatingTabCta
+          label="Plan Day"
+          icon={<Sparkles size={18} color="#fff" />}
+          onPress={() => setPlanDaySheetVisible(true)}
+        />
       ) : null}
 
       <ScheduleBlockModal
@@ -283,26 +281,5 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  planDayFab: {
-    position: 'absolute',
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#A855F7',
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  planDayFabText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
   },
 });

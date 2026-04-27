@@ -14,23 +14,31 @@
 - no Recharts in native app code
 - use `react-native-safe-area-context` correctly
 - keep Android system UI dark and safe-area aware
-- Android navigation bar must use the same solid surface color as the root app background
-- do not rely on true transparent Android navigation; use visual blending instead
+- use Android edge-to-edge navigation intentionally:
+  - `expo-navigation-bar`
+  - absolute position
+  - transparent background
+  - light buttons
 - modal and sheet action areas must include bottom inset padding
 - floating actions must sit above the tab bar and Android system navigation
 - floating planner actions must be anchored from the screen root, not from scrollable content
 - planner screens must avoid double-counting tab bar height and safe-area bottom padding
-- planner floating actions must anchor to the actual tab bar height, not stacked hardcoded offsets
+- planner floating actions should anchor from `insets.bottom` with only a minimal offset
 - planner bottom spacing should be the minimum needed to keep final content and actions visible
-- tab bars must not add separator lines or shadows that create a seam above the Android navigation area
+- main tab pages should use the shared floating CTA pattern instead of ad hoc page-specific floating buttons
+- tab bars must remain safe-area aware and must not introduce bottom seams or system-button overlap
 - auth screens must remain keyboard-safe on Android and iOS
+- task and schedule modals must remain keyboard-safe on real Android devices, including expanded advanced fields
 - password visibility toggles must stay UI-only
 - use Expo notification channels explicitly on Android
 - notification tap routing must target existing app routes only
 - request notification permission only after the user is authenticated
 - if notification permission is denied, use a non-blocking in-app notice instead of blocking the user flow
 - keep in-app notifications and push notifications conceptually separate
+- do not treat the in-app notification list as the primary notification experience when system push exists
 - Expo push token registration failures must not break app startup and should retry safely
+- Expo push token creation must resolve the EAS project ID from runtime config, not guess
+- real-device push debugging UI may expose safe status summaries only, never full Expo tokens or JWTs
 
 ## Backend Rules
 

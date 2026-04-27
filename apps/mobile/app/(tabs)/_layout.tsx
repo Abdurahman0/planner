@@ -5,6 +5,7 @@ import { LayoutDashboard, Target, Calendar, User, BarChart2 } from 'lucide-react
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../../src/store/useStore';
+import { MAIN_TAB_BAR_HEIGHT } from '../../src/components/FloatingTabCta';
 
 const APP_SURFACE_COLOR = '#000000';
 
@@ -13,9 +14,8 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const user = useStore((state) => state.user);
   const isInitialized = useStore((state) => state.isInitialized);
-  const tabBarBottomPadding = Math.max(insets.bottom, 12);
-  const tabBarHeight = 64 + insets.bottom;
-  const sceneBottomInset = tabBarHeight + 4;
+  const tabBarHeight = MAIN_TAB_BAR_HEIGHT + insets.bottom;
+  const sceneBottomInset = tabBarHeight;
 
   useEffect(() => {
     if (isInitialized && !user) {
@@ -46,7 +46,7 @@ export default function TabLayout() {
           borderTopColor: 'transparent',
           borderTopWidth: 0,
           height: tabBarHeight,
-          paddingBottom: tabBarBottomPadding,
+          paddingBottom: insets.bottom,
           paddingTop: 8,
           elevation: 0,
           shadowOpacity: 0,

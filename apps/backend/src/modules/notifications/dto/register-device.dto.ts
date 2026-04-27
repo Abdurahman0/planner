@@ -1,7 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsIn, IsString, Length, Matches } from 'class-validator';
 
-const EXPO_PUSH_TOKEN_PATTERN = /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9]+\]$/;
+const EXPO_PUSH_TOKEN_PATTERN = /^(ExponentPushToken|ExpoPushToken)\[[^\]\s]+\]$/;
 
 export class RegisterDeviceDto {
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)

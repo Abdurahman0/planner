@@ -7,6 +7,9 @@ interface NotificationsPanelProps {
   unreadCount: number;
   onPressNotification: (notificationId: string) => void;
   onRefresh?: () => void;
+  title?: string;
+  emptyText?: string;
+  maxItems?: number;
 }
 
 export function NotificationsPanel({
@@ -14,11 +17,14 @@ export function NotificationsPanel({
   unreadCount,
   onPressNotification,
   onRefresh,
+  title = 'Notifications',
+  emptyText = 'No notifications yet.',
+  maxItems = 6,
 }: NotificationsPanelProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Notifications</Text>
+        <Text style={styles.title}>{title}</Text>
         <View style={styles.headerActions}>
           {onRefresh ? (
             <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
@@ -32,9 +38,9 @@ export function NotificationsPanel({
       </View>
 
       {notifications.length === 0 ? (
-        <Text style={styles.emptyText}>No notifications yet.</Text>
+        <Text style={styles.emptyText}>{emptyText}</Text>
       ) : (
-        notifications.slice(0, 6).map((notification) => (
+        notifications.slice(0, maxItems).map((notification) => (
           <TouchableOpacity
             key={notification.id}
             style={[

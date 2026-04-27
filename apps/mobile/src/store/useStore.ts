@@ -31,12 +31,14 @@ import {
   refreshNotificationsRequest,
   registerDeviceRequest,
   registerRequest,
+  sendTestPushRequest,
   updateAvailabilityRequest,
   updateTaskRequest,
   updateTaskStatusRequest,
   type CreateAvailabilityInput,
   type CreateGoalInput,
   type CreateTaskInput,
+  type TestPushResult,
   type UpdateAvailabilityInput,
   type UpdateTaskInput,
   type UpdateTaskStatusInput,
@@ -56,6 +58,14 @@ interface AppState {
   notificationSummary: NotificationSummary | null;
   availability: AvailabilitySlot[];
   notificationPermissionNotice: string | null;
+  pushDebug: {
+    permissionStatus: 'unknown' | 'granted' | 'denied' | 'unavailable';
+    projectIdPresent: boolean;
+    tokenCreated: boolean;
+    registrationSucceeded: boolean;
+    registeredDeviceCount: number | null;
+    lastError: string | null;
+  };
   isLoading: boolean;
   isInitialized: boolean;
   clearNotificationPermissionNotice: () => void;
@@ -78,6 +88,7 @@ interface AppState {
   fetchNotificationSummary: () => Promise<NotificationSummary>;
   markNotificationRead: (notificationId: string) => Promise<void>;
   refreshNotifications: () => Promise<void>;
+  sendTestPush: () => Promise<TestPushResult>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -89,6 +100,14 @@ export const useStore = create<AppState>((set, get) => ({
   notificationSummary: null,
   availability: [],
   notificationPermissionNotice: null,
+  pushDebug: {
+    permissionStatus: 'unknown',
+    projectIdPresent: false,
+    tokenCreated: false,
+    registrationSucceeded: false,
+    registeredDeviceCount: null,
+    lastError: null,
+  },
   isLoading: false,
   isInitialized: false,
 
@@ -116,6 +135,14 @@ export const useStore = create<AppState>((set, get) => ({
           notificationSummary: null,
           availability: [],
           notificationPermissionNotice: null,
+          pushDebug: {
+            permissionStatus: 'unknown',
+            projectIdPresent: false,
+            tokenCreated: false,
+            registrationSucceeded: false,
+            registeredDeviceCount: null,
+            lastError: null,
+          },
           isInitialized: true,
           isLoading: false,
         });
@@ -138,6 +165,14 @@ export const useStore = create<AppState>((set, get) => ({
         notificationSummary: null,
         availability: [],
         notificationPermissionNotice: null,
+        pushDebug: {
+          permissionStatus: 'unknown',
+          projectIdPresent: false,
+          tokenCreated: false,
+          registrationSucceeded: false,
+          registeredDeviceCount: null,
+          lastError: null,
+        },
         isInitialized: true,
         isLoading: false,
       });
@@ -193,6 +228,14 @@ export const useStore = create<AppState>((set, get) => ({
       notificationSummary: null,
       availability: [],
       notificationPermissionNotice: null,
+      pushDebug: {
+        permissionStatus: 'unknown',
+        projectIdPresent: false,
+        tokenCreated: false,
+        registrationSucceeded: false,
+        registeredDeviceCount: null,
+        lastError: null,
+      },
       isLoading: false,
       isInitialized: true,
     });
@@ -431,6 +474,43 @@ export const useStore = create<AppState>((set, get) => ({
       throw normalizeError(error);
     }
   },
+
+  sendTestPush: async () => {
+    const token = requireToken(get);
+
+    try {
+      const pushSync = await syncPushRegistration(token, set);
+
+      if (pushSync.permissionStatus === 'denied') {
+        throw new Error('Enable notifications first, then try the push test again.');
+      }
+
+      if (!pushSync.registrationSucceeded) {
+        throw new Error(pushSync.lastError ?? 'Push registration did not complete on this device.');
+      }
+
+      const result = await sendTestPushRequest(token);
+
+      set((state) => ({
+        pushDebug: {
+          ...state.pushDebug,
+          registeredDeviceCount: result.deviceCount,
+          lastError: result.deviceCount === 0
+            ? 'No backend-registered Expo push device is available for this account.'
+            : null,
+        },
+      }));
+
+      if (result.deviceCount === 0) {
+        throw new Error('No push-ready Android device is registered yet. Grant permission and try again.');
+      }
+
+      return result;
+    } catch (error) {
+      await handleApiError(error, set);
+      throw normalizeError(error);
+    }
+  },
 }));
 
 async function hydrateAppData(
@@ -452,13 +532,13 @@ async function hydrateAppData(
     fetchNotificationsRequest(token),
     fetchNotificationSummaryRequest(token),
   ]);
-  set({
-    goals,
-    tasks,
-    notifications,
-    notificationSummary,
-    availability,
-  });
+    set({
+      goals,
+      tasks,
+      notifications,
+      notificationSummary,
+      availability,
+    });
 }
 
 async function syncPushRegistration(
@@ -467,30 +547,78 @@ async function syncPushRegistration(
 ) {
   try {
     const result = await registerForPushNotificationsAsync();
+    set((state) => ({
+      pushDebug: {
+        ...state.pushDebug,
+        permissionStatus: result.permissionStatus,
+        projectIdPresent: result.projectIdPresent,
+        tokenCreated: result.tokenCreated,
+        registrationSucceeded: false,
+        lastError: result.registrationError ?? null,
+      },
+    }));
 
     if (result.permissionStatus === 'denied') {
       set({ notificationPermissionNotice: NOTIFICATION_PERMISSION_MESSAGE });
-      return;
+      return {
+        permissionStatus: 'denied' as const,
+        registrationSucceeded: false,
+        lastError: result.registrationError ?? NOTIFICATION_PERMISSION_MESSAGE,
+      };
     }
 
     if (result.permissionStatus === 'unavailable') {
-      return;
+      return {
+        permissionStatus: 'unavailable' as const,
+        registrationSucceeded: false,
+        lastError: result.registrationError ?? 'Push notifications are unavailable in this runtime.',
+      };
     }
 
     if (!result.registration) {
-      return;
+      return {
+        permissionStatus: 'granted' as const,
+        registrationSucceeded: false,
+        lastError: result.registrationError ?? 'Push token was not created on this device.',
+      };
     }
 
-    await attemptDeviceRegistration(token, result.registration);
+    const registrationResponse = await attemptDeviceRegistration(token, result.registration);
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
-      console.log('[push] Device registration succeeded');
+      console.log('[push] Device registration succeeded', registrationResponse);
     }
-    set({ notificationPermissionNotice: null });
-  } catch {
+    set((state) => ({
+      notificationPermissionNotice: null,
+      pushDebug: {
+        ...state.pushDebug,
+        registrationSucceeded: true,
+        registeredDeviceCount: null,
+        lastError: null,
+      },
+    }));
+    return {
+      permissionStatus: 'granted' as const,
+      registrationSucceeded: true,
+      lastError: null,
+    };
+  } catch (error) {
     // Push registration must not block app startup.
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.log('[push] Device registration failed');
     }
+    const safeError = error instanceof Error ? error.message : 'Push device registration failed.';
+    set((state) => ({
+      pushDebug: {
+        ...state.pushDebug,
+        registrationSucceeded: false,
+        lastError: safeError,
+      },
+    }));
+    return {
+      permissionStatus: 'granted' as const,
+      registrationSucceeded: false,
+      lastError: safeError,
+    };
   }
 }
 
@@ -502,11 +630,10 @@ async function attemptDeviceRegistration(
   },
 ) {
   try {
-    await registerDeviceRequest(token, registration);
-    return;
+    return await registerDeviceRequest(token, registration);
   } catch (error) {
     await delay(1500);
-    await registerDeviceRequest(token, registration);
+    return registerDeviceRequest(token, registration);
   }
 }
 
@@ -535,6 +662,14 @@ async function handleApiError(
       notificationSummary: null,
       availability: [],
       notificationPermissionNotice: null,
+      pushDebug: {
+        permissionStatus: 'unknown',
+        projectIdPresent: false,
+        tokenCreated: false,
+        registrationSucceeded: false,
+        registeredDeviceCount: null,
+        lastError: null,
+      },
       isLoading: false,
       isInitialized: true,
     });
