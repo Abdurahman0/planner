@@ -1,19 +1,17 @@
 import { Stack, useRouter } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, DarkTheme } from '@react-navigation/native';
-import { View, StyleSheet, Platform, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { useAppBootstrap } from '../src/hooks/useAppBootstrap';
 import { NotificationType } from '@packages/shared';
 import { useStore } from '../src/store/useStore';
 
 const queryClient = new QueryClient();
 const APP_BACKGROUND_COLOR = '#000000';
-const TRANSPARENT_NAVIGATION_BAR = '#00000000';
 
 export default function RootLayout() {
   return (
@@ -25,7 +23,6 @@ export default function RootLayout() {
 
 function AppShell() {
   useAppBootstrap();
-  useAndroidSystemUi();
   const notificationPermissionNotice = useStore((state) => state.notificationPermissionNotice);
   const clearNotificationPermissionNotice = useStore((state) => state.clearNotificationPermissionNotice);
   const { foregroundBanner, dismissForegroundBanner, openForegroundBanner } = useNotificationRouting();
@@ -35,7 +32,7 @@ function AppShell() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={DarkTheme}>
         <View style={styles.container}>
-          <StatusBar style="light" translucent backgroundColor={TRANSPARENT_NAVIGATION_BAR} />
+          <SystemBars style={{ statusBar: 'light', navigationBar: 'light' }} />
           <Stack screenOptions={{ headerShown: false, contentStyle: styles.container }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="auth" />
@@ -69,26 +66,6 @@ function AppShell() {
       </ThemeProvider>
     </QueryClientProvider>
   );
-}
-
-function useAndroidSystemUi() {
-  useEffect(() => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-
-    void (async () => {
-      try {
-        await NavigationBar.setPositionAsync('absolute');
-        await NavigationBar.setBackgroundColorAsync(TRANSPARENT_NAVIGATION_BAR);
-        await NavigationBar.setButtonStyleAsync('light');
-        await NavigationBar.setBehaviorAsync('overlay-swipe');
-        NavigationBar.setStyle('light');
-      } catch {
-        // Keep Android startup resilient if a device/runtime does not support every nav-bar call.
-      }
-    })();
-  }, []);
 }
 
 type NotificationNavigationTarget = {

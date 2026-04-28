@@ -14,6 +14,9 @@ const expoConfig = {
           : undefined,
     },
   },
+  android: {
+    package: 'com.aiplanner.mobile',
+  },
 };
 
 export default {

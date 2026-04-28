@@ -119,9 +119,14 @@ Push delivery note:
 
 - Expo push notifications on the APK require:
   - notification permission on-device
+  - physical-device Android testing
   - valid Expo push token generation
   - working backend device registration
   - deployed backend routes for `POST /notifications/devices` and `POST /notifications/test-push`
+  - a valid `google-services.json` wired into the Android build for package `com.aiplanner.mobile`
+  - valid FCM V1 credentials uploaded in EAS for the Expo project
+
+If Push Debug shows `Default FirebaseApp is not initialized`, the APK was built without correct Firebase client setup. That is a native build/config problem, not a backend auth problem.
 
 ## Quick Links
 

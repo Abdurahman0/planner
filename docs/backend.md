@@ -209,6 +209,7 @@ In-app notifications vs push notifications:
 - in-app notifications are rows stored in the `Notification` table and returned by `GET /notifications`
 - push notifications are best-effort Expo deliveries sent to `UserDevice` tokens after a notification is created
 - a saved in-app notification does not guarantee Android system delivery unless the Expo push send succeeds and the device token is valid
+- backend accepts Expo push tokens; it does not require a raw client-side FCM token
 
 Current limitation:
 
@@ -254,6 +255,7 @@ Security properties:
 - test-push remains JWT-protected and only targets the authenticated user's devices
 - device registration never accepts a client-controlled `userId`
 - Expo device tokens are validated before storage and empty/invalid values are rejected
+- backend does not expose or depend on Firebase service-account secrets to the mobile app
 - push payloads contain routing metadata only
 - no secrets or private account data are sent in Expo push payloads
 - notification access remains user-scoped
@@ -262,6 +264,14 @@ Security properties:
   - `sound: default`
   - `priority: high`
 - invalid Expo tokens are removed when Expo tickets indicate `DeviceNotRegistered` or malformed token errors
+
+Android push deployment requirement:
+
+- backend delivery is only one half of Android push
+- the mobile APK must also be built with:
+  - a valid `google-services.json` for `com.aiplanner.mobile`
+  - valid EAS FCM V1 credentials for Expo push
+- if the device reports `Default FirebaseApp is not initialized`, the backend is not the root cause
 
 Background / closed-app delivery:
 

@@ -1,4 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { ExpoConfig } from '@expo/config-types';
+
+const googleServicesFile = resolveGoogleServicesFile();
 
 const config: ExpoConfig = {
   name: 'AI Planner',
@@ -22,6 +26,15 @@ const config: ExpoConfig = {
         color: '#A855F7',
       },
     ],
+    [
+      'react-native-edge-to-edge',
+      {
+        android: {
+          parentTheme: 'Default',
+          enforceNavigationBarContrast: false,
+        },
+      },
+    ],
     'expo-secure-store',
   ],
   experiments: {
@@ -36,6 +49,7 @@ const config: ExpoConfig = {
     adaptiveIcon: {
       backgroundColor: '#000000',
     },
+    ...(googleServicesFile ? { googleServicesFile } : {}),
   },
   extra: {
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001',
@@ -46,3 +60,20 @@ const config: ExpoConfig = {
 };
 
 export default config;
+
+function resolveGoogleServicesFile() {
+  const configuredPath = process.env.GOOGLE_SERVICES_FILE?.trim();
+  const candidates = [configuredPath, './google-services.json'].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  for (const candidate of candidates) {
+    const resolvedCandidate = path.resolve(process.cwd(), candidate);
+
+    if (fs.existsSync(resolvedCandidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}

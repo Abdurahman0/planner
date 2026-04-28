@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "707241492591",
+    "project_id": "ai-planner-28803",
+    "storage_bucket": "ai-planner-28803.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:707241492591:android:9a1f2e6b461a4411440d9a",
+        "android_client_info": {
+          "package_name": "com.aiplanner.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAosMtq4_ASIFXf4QwcdtA1dmBGW8nNJaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

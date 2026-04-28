@@ -34,6 +34,7 @@
   - foreground in-app fallback banner
   - backend test push endpoint
   - internal cron-triggerable notification sweep
+- config-level Android edge-to-edge system bar setup
 
 ## CURRENT
 
@@ -49,6 +50,8 @@
 - background/closed-app push verification on deployed backend
 - real Android keyboard QA for planner/task modals
 - Render redeploy verification for `/availability`, `/notifications/test-push`, and `/notifications/run-sweep`
+- Firebase `google-services.json` and EAS FCM credential verification for APK push token creation
+- OEM-specific Android nav bar transparency QA on physical devices
 
 ## NEXT
 

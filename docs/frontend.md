@@ -68,6 +68,7 @@ In-app notifications vs push notifications:
 - in-app notifications are database records shown inside the Profile notifications panel
 - push notifications are Android system notifications delivered through Expo to registered device tokens
 - push delivery does not require the app UI to be open once the backend has a stored Expo token and the backend triggers notification generation
+- the mobile app registers an Expo push token, not a raw FCM token
 
 Current tap behavior:
 
@@ -92,6 +93,7 @@ Current push flow:
 - if granted, it resolves the Expo project ID from:
   - `Constants.expoConfig?.extra?.eas?.projectId`
   - fallback: `Constants.easConfig?.projectId`
+- if the runtime is web preview or an emulator, it exits early with a safe unsupported-runtime message
 - if granted, it fetches the Expo push token using that EAS project ID
 - it registers that token with `POST /notifications/devices`
 - if device registration fails, it retries once safely
@@ -108,6 +110,18 @@ Current push flow:
   - whether project ID was found
   - whether a token was created
   - whether backend registration succeeded
+
+Current Android token-creation failure meaning:
+
+- if Push Debug shows:
+  - `Permission = granted`
+  - `Project ID = present`
+  - `Token created = no`
+  - and the last issue mentions `Default FirebaseApp is not initialized`
+- then the APK is missing native Firebase client setup
+- this is not a backend JWT/device-registration problem
+- the Android build must include a valid `google-services.json` for package `com.aiplanner.mobile`
+- EAS must also have valid FCM V1 credentials uploaded for the Expo project
 
 Foreground vs background behavior:
 
@@ -200,10 +214,9 @@ Implemented:
 
 - `SafeAreaProvider` at app root
 - tab bar respects bottom safe area
-- Android navigation bar is configured edge-to-edge on Android
-- Android navigation bar uses absolute positioning and transparent background
-- light status bar
-- app content can render under the Android system navigation area
+- Android system bars now use config-level edge-to-edge plus `react-native-edge-to-edge`
+- root layout uses `SystemBars` instead of depending on deprecated runtime nav-bar background APIs
+- app content renders under the Android system navigation area while still respecting `insets.bottom`
 - main screens padded to avoid overlap with bottom navigation/system area
 - planner modals and sheets apply safe-area-aware bottom padding for action buttons
 - `Plan Day` floating button sits above tab bar and Android system navigation on device
@@ -214,6 +227,15 @@ Implemented:
   - planner scroll content padding
   - floating action positioning
 - floating CTA buttons on main tabs use `insets.bottom` plus a minimal offset instead of tab-bar-height anchoring
+
+Edge-to-edge note:
+
+- `expo-navigation-bar` runtime calls alone are not reliable enough on some OEM Android builds
+- the stronger fix is config-level edge-to-edge with `react-native-edge-to-edge`
+- built-in planner modals now also set:
+  - `statusBarTranslucent`
+  - `navigationBarTranslucent`
+- if a specific OEM still forces a non-transparent nav area, document that device behavior during QA instead of treating it as proof the old implementation is still active
 
 ## Native Compatibility
 
@@ -239,6 +261,9 @@ Environment requirement:
 
 - `EXPO_PUBLIC_API_URL` must be set for EAS builds
 - the APK must also have a valid EAS project association so Expo push token creation can resolve the project ID at runtime
+- Android push token creation also requires native Firebase client config:
+  - `GOOGLE_SERVICES_FILE=./google-services.json` or another valid path
+  - the file must match `com.aiplanner.mobile`
 
 Current example in repo env:
 
@@ -258,8 +283,11 @@ Availability API note:
 Production note:
 
 - Expo push token registration depends on the EAS project ID embedded in [app.config.ts](/c:/Users/Abdurahmon/planner/app.config.ts)
+- Android Expo push token creation also depends on a valid `google-services.json` being wired into the native build
+- Expo Go is not a valid environment for Android remote push testing in this project
 - proper Android notification icon asset is still not configured; Android will fall back to the app/default notification icon until a dedicated monochrome asset is added
-- testing true background/closed-app push requires an EAS-built APK, not the web preview
+- testing true background/closed-app push requires a physical-device EAS APK or dev build, not the web preview
+- any change to `google-services.json`, edge-to-edge plugin config, or native notification config requires a fresh EAS rebuild
 
 Troubleshooting `No push-ready Android device is registered yet`:
 
@@ -267,6 +295,7 @@ Troubleshooting `No push-ready Android device is registered yet`:
 - if `Permission = denied`, allow notifications in Android settings or app prompt
 - if `Project ID = missing`, rebuild the APK from the linked EAS project
 - if `Token created = no`, Expo token generation failed on-device
+- if the last issue says `Default FirebaseApp is not initialized`, rebuild with a valid `google-services.json` and EAS FCM credentials
 - if `Backend registration = not confirmed`, inspect backend route deployment or JWT-authenticated device registration
 - if `Backend device count = 0`, the backend still has no usable Expo token for the authenticated user
 

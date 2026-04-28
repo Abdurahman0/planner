@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 
 export const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
@@ -48,6 +49,16 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
       permissionStatus: 'unavailable',
       projectIdPresent: false,
       tokenCreated: false,
+      registrationError: 'Push notifications require a native mobile build.',
+    };
+  }
+
+  if (!Device.isDevice) {
+    return {
+      permissionStatus: 'unavailable',
+      projectIdPresent: false,
+      tokenCreated: false,
+      registrationError: 'Push notifications require a physical device, not an emulator or web preview.',
     };
   }
 
@@ -137,7 +148,13 @@ function isExpoPushToken(token: string) {
 
 function extractSafePushError(error: unknown) {
   if (error instanceof Error && error.message.trim()) {
-    return error.message.trim();
+    const message = error.message.trim();
+
+    if (message.includes('Default FirebaseApp is not initialized')) {
+      return 'Android Firebase/FCM is not initialized in this APK. Add google-services.json for com.aiplanner.mobile and configure FCM V1 credentials in EAS.';
+    }
+
+    return message;
   }
 
   return 'Unable to create an Expo push token on this device.';

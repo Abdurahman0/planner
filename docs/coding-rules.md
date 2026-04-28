@@ -14,11 +14,10 @@
 - no Recharts in native app code
 - use `react-native-safe-area-context` correctly
 - keep Android system UI dark and safe-area aware
-- use Android edge-to-edge navigation intentionally:
-  - `expo-navigation-bar`
-  - absolute position
-  - transparent background
-  - light buttons
+- use Android edge-to-edge intentionally:
+  - prefer config-level edge-to-edge over deprecated runtime-only nav-bar background hacks
+  - use `SystemBars` from `react-native-edge-to-edge` when the app depends on transparent system bars
+  - keep safe-area protections even when content renders behind system bars
 - modal and sheet action areas must include bottom inset padding
 - floating actions must sit above the tab bar and Android system navigation
 - floating planner actions must be anchored from the screen root, not from scrollable content
@@ -38,6 +37,8 @@
 - do not treat the in-app notification list as the primary notification experience when system push exists
 - Expo push token registration failures must not break app startup and should retry safely
 - Expo push token creation must resolve the EAS project ID from runtime config, not guess
+- Expo Android push registration must use an Expo push token, not a raw FCM token
+- Android remote push builds must include valid Firebase client config plus EAS FCM credentials
 - real-device push debugging UI may expose safe status summaries only, never full Expo tokens or JWTs
 
 ## Backend Rules
@@ -68,6 +69,8 @@
 - use EAS environment variables for APK builds
 - `EXPO_PUBLIC_API_URL` must be set correctly for preview/production builds
 - Expo notifications in APK builds must use the configured EAS project ID
+- Android push builds must include a valid `GOOGLE_SERVICES_FILE` path or committed `google-services.json`
+- never commit Firebase service-account private keys to the repo
 
 ## Secrets Rules
 

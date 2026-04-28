@@ -95,6 +95,7 @@ Current notification behavior:
 
 - the app keeps an in-app record list for recent planner events
 - backend-generated Expo push notifications are the primary user-facing notification surface
+- the in-app record list is history/debug context, not the main delivery mechanism
 - closed-app/background delivery depends on backend sweep or cron execution, not just the app UI
 - Profile includes a developer-safe test push action and debug summary for real-device verification
 - task reminders can surface as Android system notifications
@@ -110,6 +111,7 @@ Current notification behavior:
 - task resize by drag is not implemented
 - overlap handling in the UI is still basic
 - Android notification styling is limited by OS/system rendering rules
+- Android push also depends on correct Firebase client setup inside the APK plus EAS FCM credentials
 - push behavior still needs full real-device QA with production Expo credentials
 - closed-app/background push depends on deployed backend sweep/cron execution, not just the app UI being open
 - real-device QA is still required before public launch
