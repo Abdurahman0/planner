@@ -54,6 +54,7 @@ Task has:
 - `plannedDate`
 - no `startTime`
 - no `endTime`
+- optional `goalId`
 
 Unscheduled tasks stay visible in their own section until scheduled.
 
@@ -91,6 +92,7 @@ Implemented:
 - explicit end-of-day marker
 - routine blocks rendered by time
 - scheduled tasks rendered by duration
+- standalone tasks render in the same day/week/month views because ownership is task-level, not goal-only
 - recurring task occurrences rendered inside the same day timeline
 - recurring routine-block occurrences rendered inside the same day timeline
 - tap hour to add task
@@ -163,6 +165,9 @@ Implemented MVP:
 - notification body:
   - up to 3 task titles
   - then `+N more tasks` if more remain
+- notification body tap opens Planner
+- notification action uses supported Android/Expo action button text (`✓ Done`) rather than a custom circle animation
+- the `✓ Done` action targets the first visible task in the reminder
 - completing tasks changes the next notification refresh
 - if no incomplete unscheduled tasks remain, the local daily-task reminder is cleared
 - identical daily-task notifications are deduplicated so the backend does not push the same payload every sweep
@@ -175,6 +180,7 @@ Current platform limitation:
   - unchanged reminder content is throttled by cooldown/dedupe instead of being sent every sweep
   - the app can mirror/update a local reminder while it is open and synced
   - if the user swipes it away, it may return on the next sync/sweep
+  - if the app was fully killed, the `✓ Done` action completes safely once the app resumes from the notification action
 
 Still weak:
 

@@ -25,7 +25,7 @@ interface TaskScheduleModalProps {
   initialStartTime?: string;
   onClose: () => void;
   onCreate: (input: {
-    goalId: string;
+    goalId?: string;
     title: string;
     description?: string;
     type: TaskType;
@@ -74,6 +74,8 @@ const weekdayOptions = [
   { label: 'S', value: 6 },
 ];
 
+const STANDALONE_TASK_GOAL_ID = '__standalone_task__';
+
 export function TaskScheduleModal({
   visible,
   goals,
@@ -88,7 +90,7 @@ export function TaskScheduleModal({
   const insets = useSafeAreaInsets();
   const footerPaddingBottom = insets.bottom + 16;
   const scrollContentPaddingBottom = footerPaddingBottom + 96;
-  const [goalId, setGoalId] = useState('');
+  const [goalId, setGoalId] = useState<string>(STANDALONE_TASK_GOAL_ID);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [taskType, setTaskType] = useState<TaskType>(TaskType.TIME_BASED);
@@ -112,7 +114,7 @@ export function TaskScheduleModal({
       return;
     }
 
-    setGoalId(task?.goalId ?? goals[0]?.id ?? '');
+    setGoalId(task?.goalId ?? STANDALONE_TASK_GOAL_ID);
     setTitle(task?.title ?? '');
     setDescription(task?.description ?? '');
     setTaskType(task?.type ?? TaskType.TIME_BASED);
@@ -191,7 +193,7 @@ export function TaskScheduleModal({
     }
 
     await onCreate({
-      goalId,
+      goalId: goalId === STANDALONE_TASK_GOAL_ID ? undefined : goalId,
       title: title.trim(),
       description: description.trim() || undefined,
       type: taskType,
@@ -244,25 +246,33 @@ export function TaskScheduleModal({
               {!task ? (
                 <View style={styles.field}>
                   <Text style={styles.label}>Goal</Text>
-                  {goals.length === 0 ? (
-                    <View style={styles.emptyGoalsState}>
-                      <Text style={styles.emptyGoalsStateText}>Create a goal first. Tasks must belong to a goal.</Text>
-                    </View>
-                  ) : (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.goalChips}>
-                      {goals.map((goal) => (
-                        <TouchableOpacity
-                          key={goal.id}
-                          style={[styles.goalChip, goalId === goal.id && styles.goalChipActive]}
-                          onPress={() => setGoalId(goal.id)}
-                        >
-                          <Text style={[styles.goalChipText, goalId === goal.id && styles.goalChipTextActive]} numberOfLines={1}>
-                            {goal.title}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  )}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.goalChips}>
+                    <TouchableOpacity
+                      style={[styles.goalChip, goalId === STANDALONE_TASK_GOAL_ID && styles.goalChipActive]}
+                      onPress={() => setGoalId(STANDALONE_TASK_GOAL_ID)}
+                    >
+                      <Text
+                        style={[
+                          styles.goalChipText,
+                          goalId === STANDALONE_TASK_GOAL_ID && styles.goalChipTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        No goal / Standalone task
+                      </Text>
+                    </TouchableOpacity>
+                    {goals.map((goal) => (
+                      <TouchableOpacity
+                        key={goal.id}
+                        style={[styles.goalChip, goalId === goal.id && styles.goalChipActive]}
+                        onPress={() => setGoalId(goal.id)}
+                      >
+                        <Text style={[styles.goalChipText, goalId === goal.id && styles.goalChipTextActive]} numberOfLines={1}>
+                          {goal.title}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
               ) : null}
 
@@ -506,9 +516,9 @@ export function TaskScheduleModal({
 
             <View style={[styles.footer, { paddingBottom: footerPaddingBottom }]}>
               <TouchableOpacity
-                style={[styles.submitButton, (!task && goals.length === 0) && styles.submitButtonDisabled]}
+                style={styles.submitButton}
                 onPress={() => void handleSubmit()}
-                disabled={isLoading || (!task && goals.length === 0)}
+                disabled={isLoading}
               >
                 <Text style={styles.submitButtonText}>{isLoading ? 'Saving...' : task ? 'Save Task' : 'Create Task'}</Text>
               </TouchableOpacity>

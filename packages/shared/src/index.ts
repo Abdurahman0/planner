@@ -155,7 +155,8 @@ export interface AvailabilitySlot {
 
 export interface Task {
   id: string;
-  goalId: string;
+  userId?: string;
+  goalId?: string;
   planId?: string;
   milestoneId?: string;
   title: string;

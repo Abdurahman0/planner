@@ -147,6 +147,7 @@ Daily-task reminder note:
 - incomplete unscheduled tasks for today can be mirrored into a local Android reminder while the app is open and synced
 - backend sweep can also re-send a daily-task reminder while incomplete tasks remain
 - identical reminder payloads are deduplicated so the same push is not sent on every sweep
+- the reminder supports a `✓ Done` action that completes the first visible task when the app resumes from the notification action
 - this is an Expo-compatible MVP, not a verified true non-dismissible Android ongoing notification
 
 ## Quick Links

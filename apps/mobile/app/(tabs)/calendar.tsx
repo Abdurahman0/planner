@@ -128,7 +128,7 @@ export default function CalendarScreen() {
   };
 
   const handleCreateTask = async (input: {
-    goalId: string;
+    goalId?: string;
     title: string;
     description?: string;
     type: Task['type'];
@@ -144,7 +144,10 @@ export default function CalendarScreen() {
   }) => {
     try {
       await createTask(input);
-      await Promise.all([fetchTasks(input.goalId), fetchGoalIfLoaded(input.goalId, activeGoals, useStore.getState().fetchGoal)]);
+      await Promise.all([
+        fetchTasks(input.goalId),
+        ...(input.goalId ? [fetchGoalIfLoaded(input.goalId, activeGoals, useStore.getState().fetchGoal)] : []),
+      ]);
       closeTaskModal();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to create task';
@@ -173,7 +176,7 @@ export default function CalendarScreen() {
       const updatedTask = await updateTask(taskId, input);
       await Promise.all([
         fetchTasks(updatedTask.goalId),
-        useStore.getState().fetchGoal(updatedTask.goalId),
+        ...(updatedTask.goalId ? [useStore.getState().fetchGoal(updatedTask.goalId)] : []),
       ]);
       closeTaskModal();
     } catch (error) {
@@ -276,7 +279,11 @@ export default function CalendarScreen() {
   );
 }
 
-async function fetchGoalIfLoaded(goalId: string, goals: Goal[], fetchGoal: (goalId: string) => Promise<Goal>) {
+async function fetchGoalIfLoaded(goalId: string | undefined, goals: Goal[], fetchGoal: (goalId: string) => Promise<Goal>) {
+  if (!goalId) {
+    return;
+  }
+
   if (!goals.some((goal) => goal.id === goalId)) {
     return;
   }

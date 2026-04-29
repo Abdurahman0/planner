@@ -46,6 +46,7 @@ async function main() {
   await prisma.task.createMany({
     data: [
       {
+        userId: user.id,
         goalId: goal.id,
         planId: plan.id,
         title: 'Learn React Native Basics',
@@ -59,6 +60,7 @@ async function main() {
         order: 1,
       },
       {
+        userId: user.id,
         goalId: goal.id,
         planId: plan.id,
         title: 'Build a NestJS API',

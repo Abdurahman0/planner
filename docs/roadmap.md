@@ -39,6 +39,9 @@
 - recurrence month-view counting/rendering fix
 - unscheduled daily-task notification MVP
 - notification dedupe hardening for unchanged daily-task reminders
+- standalone task model and secure task-level ownership
+- daily-task notification `✓ Done` action fallback
+- removal of custom in-app daily reminder banner duplication
 
 ## CURRENT
 
@@ -59,6 +62,7 @@
 - final production QA after removing temporary push debug/profile record surfaces
 - recurrence QA across day/week/month views
 - daily-task notification QA on real Android devices
+- notification-action QA for killed-app resume behavior
 
 ## NEXT
 

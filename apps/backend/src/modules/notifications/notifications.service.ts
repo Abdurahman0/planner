@@ -26,6 +26,7 @@ const DAILY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const STREAK_MILESTONES = new Set([3, 7, 14, 30, 60, 100]);
 const EXPO_PUSH_API_URL = 'https://exp.host/--/api/v2/push/send';
 const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
+const DAILY_TASKS_CATEGORY_ID = 'daily_tasks';
 const EXPO_PUSH_MAX_MESSAGES_PER_REQUEST = 100;
 const DAILY_TASKS_RESEND_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const EMPTY_PUSH_RESULT = {
@@ -108,6 +109,10 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         body: buildDailyTaskNotificationBody(context.unscheduledDailyTasks),
         metadata: {
           taskId: firstDailyTask.id,
+          firstTaskId: firstDailyTask.seriesId ?? firstDailyTask.id,
+          taskIds: context.unscheduledDailyTasks
+            .slice(0, 3)
+            .map((task) => task.seriesId ?? task.id),
           notificationKind: 'daily_tasks',
           occurrenceDate: (firstDailyTask.occurrenceDate ?? firstDailyTask.plannedDate).toISOString(),
           plannerDate: context.dayKey,
@@ -358,12 +363,11 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   ) {
     const tasks = await prismaClient.task.findMany({
       where: {
-        goal: {
-          userId,
-        },
+        userId,
       },
       select: {
         id: true,
+        userId: true,
         title: true,
         goalId: true,
         status: true,
@@ -549,9 +553,9 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           message: {
             title: notification.title,
             body: notification.body,
-            type: notification.type,
+            type: resolvePushNotificationType(notification.type, notification.metadata),
             notificationId: notification.id,
-            routeData: extractNotificationRouteData(notification.metadata),
+            routeData: extractNotificationPushData(notification.metadata),
           },
         })),
       );
@@ -581,13 +585,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   private async dispatchExpoPushMessages(
     deliveries: Array<{
       token: string;
-      message: {
-        title: string;
-        body: string;
-        type: NotificationType;
-        notificationId?: string;
-        routeData?: Record<string, string>;
-      };
+        message: {
+          title: string;
+          body: string;
+          type: NotificationType | 'daily_tasks';
+          notificationId?: string;
+          routeData?: Record<string, string | string[]>;
+        };
     }>,
   ) {
     const invalidTokens = new Set<string>();
@@ -656,10 +660,12 @@ type PrismaClientLike = PrismaService | Prisma.TransactionClient | PrismaClient;
 
 type RetentionTask = {
   id: string;
+  userId: string;
   title: string;
-  goalId: string;
+  goalId?: string | null;
   status: TaskStatus;
   plannedDate: Date;
+  seriesId?: string;
   occurrenceDate?: Date;
   startTime?: string | null;
   endTime?: string | null;
@@ -671,11 +677,11 @@ type RetentionTask = {
     occurrenceDate?: Date | null;
     loggedAt: Date;
   }>;
-  goal: {
+  goal?: {
     title: string;
     targetDate: Date;
     projectedDate: Date;
-  };
+  } | null;
 };
 
 function buildNotificationSummary(
@@ -712,7 +718,9 @@ function buildNotificationSummary(
   const goalStates = new Map<string, { targetDate: Date; projectedDate: Date; title: string }>();
 
   for (const task of tasks) {
-    goalStates.set(task.goalId, task.goal);
+    if (task.goalId && task.goal) {
+      goalStates.set(task.goalId, task.goal);
+    }
   }
 
   let behindGoalsCount = 0;
@@ -839,13 +847,13 @@ function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-function extractNotificationRouteData(metadata: Prisma.JsonValue | null | undefined) {
+function extractNotificationPushData(metadata: Prisma.JsonValue | null | undefined) {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
     return {};
   }
 
   const metadataRecord = metadata as Record<string, unknown>;
-  const routeData: Record<string, string> = {};
+  const routeData: Record<string, string | string[]> = {};
 
   if (typeof metadataRecord.goalId === 'string') {
     routeData.goalId = metadataRecord.goalId;
@@ -853,6 +861,29 @@ function extractNotificationRouteData(metadata: Prisma.JsonValue | null | undefi
 
   if (typeof metadataRecord.taskId === 'string') {
     routeData.taskId = metadataRecord.taskId;
+  }
+
+  if (typeof metadataRecord.firstTaskId === 'string') {
+    routeData.firstTaskId = metadataRecord.firstTaskId;
+  }
+
+  if (
+    Array.isArray(metadataRecord.taskIds) &&
+    metadataRecord.taskIds.every((value) => typeof value === 'string')
+  ) {
+    routeData.taskIds = metadataRecord.taskIds as string[];
+  }
+
+  if (typeof metadataRecord.occurrenceDate === 'string') {
+    routeData.occurrenceDate = metadataRecord.occurrenceDate;
+  }
+
+  if (typeof metadataRecord.notificationKind === 'string') {
+    routeData.notificationKind = metadataRecord.notificationKind;
+  }
+
+  if (typeof metadataRecord.plannerDate === 'string') {
+    routeData.plannerDate = metadataRecord.plannerDate;
   }
 
   return routeData;
@@ -865,9 +896,9 @@ function buildExpoPushMessage(
   input: {
     title: string;
     body: string;
-    type: NotificationType;
+    type: NotificationType | 'daily_tasks';
     notificationId?: string;
-    routeData?: Record<string, string>;
+    routeData?: Record<string, string | string[]>;
   },
 ) {
   return {
@@ -877,12 +908,30 @@ function buildExpoPushMessage(
     sound: 'default',
     priority: 'high',
     channelId: PLANNER_REMINDERS_CHANNEL_ID,
+    ...(input.type === 'daily_tasks' ? { categoryId: DAILY_TASKS_CATEGORY_ID } : {}),
     data: {
       ...(input.notificationId ? { notificationId: input.notificationId } : {}),
       type: input.type,
       ...(input.routeData ?? {}),
     },
   };
+}
+
+function resolvePushNotificationType(
+  type: NotificationType,
+  metadata: Prisma.JsonValue | null | undefined,
+) {
+  if (
+    metadata &&
+    typeof metadata === 'object' &&
+    !Array.isArray(metadata) &&
+    'notificationKind' in metadata &&
+    metadata.notificationKind === 'daily_tasks'
+  ) {
+    return 'daily_tasks' as const;
+  }
+
+  return type;
 }
 
 async function parseExpoPushResponse(response: Response): Promise<{ data?: unknown[] } | null> {

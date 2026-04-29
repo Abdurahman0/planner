@@ -111,7 +111,7 @@ Implemented:
 
 Implemented:
 
-- tasks are goal-owned
+- tasks are user-owned and may optionally be linked to a goal
 - task status changes write `TaskProgressLog`
 - projected deadline recalculation happens from real task progress
 - recurring task series support:
@@ -127,11 +127,13 @@ Implemented:
   - `startTime`
   - `endTime`
 - unscheduled tasks remain valid
+- standalone tasks remain valid without `goalId`
 - unscheduled daily tasks are tasks with:
   - `plannedDate = today`
   - `startTime = null`
   - `endTime = null`
   - `status != done`
+- goal ownership is still validated whenever `goalId` is supplied
 
 ## Availability Rules
 
@@ -256,6 +258,7 @@ Current supported push content:
   - oldest created tasks appear first
   - if more remain, the body ends with `+N more tasks`
   - unchanged daily-task content is deduplicated and not re-pushed on every sweep
+  - payload includes safe task action metadata for the first visible task
 
 Expo push payload shape:
 
@@ -276,6 +279,14 @@ Expo push payload shape:
 }
 ```
 
+Daily-task payloads extend that with safe reminder metadata:
+
+- `type: "daily_tasks"`
+- `notificationKind: "daily_tasks"`
+- `firstTaskId`
+- `taskIds` for the first visible 3 tasks
+- `occurrenceDate` for recurring-occurrence completion
+
 Security properties:
 
 - device registration remains JWT-protected
@@ -294,6 +305,8 @@ Security properties:
   - `sound: default`
   - `priority: high`
 - invalid Expo tokens are removed when Expo tickets indicate `DeviceNotRegistered` or malformed token errors
+- task completion from notification actions still goes through the JWT-protected task status endpoint
+- standalone tasks stay user-scoped through `Task.userId`; ownership no longer depends only on the goal relation
 
 Android push deployment requirement:
 
@@ -319,6 +332,7 @@ Background / closed-app delivery:
   - backend sweep can re-send the daily-task reminder while incomplete unscheduled tasks remain
   - identical daily-task reminders are throttled by dedupe/cooldown instead of re-sending every sweep
   - the app can mirror/update a local daily-task reminder while it is open and synced
+  - the `✓ Done` action completes the first visible task when the app resumes from the notification action
 
 ## Deployment Notes
 

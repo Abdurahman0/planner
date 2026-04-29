@@ -7,9 +7,14 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import * as Notifications from 'expo-notifications';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { useAppBootstrap } from '../src/hooks/useAppBootstrap';
-import { NotificationType } from '@packages/shared';
+import { NotificationType, TaskStatus } from '@packages/shared';
 import { useStore } from '../src/store/useStore';
-import { syncDailyTaskNotificationAsync } from '../src/lib/pushNotifications';
+import {
+  COMPLETE_FIRST_DAILY_TASK_ACTION_ID,
+  DAILY_TASKS_NOTIFICATION_KIND,
+  isDailyTasksNotificationData,
+  syncDailyTaskNotificationAsync,
+} from '../src/lib/pushNotifications';
 
 const queryClient = new QueryClient();
 const APP_BACKGROUND_COLOR = '#000000';
@@ -29,7 +34,7 @@ function AppShell() {
   const tasks = useStore((state) => state.tasks);
   const user = useStore((state) => state.user);
   const isInitialized = useStore((state) => state.isInitialized);
-  const { foregroundBanner, dismissForegroundBanner, openForegroundBanner } = useNotificationRouting();
+  useNotificationRouting();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -58,22 +63,6 @@ function AppShell() {
               </TouchableOpacity>
             </View>
           ) : null}
-          {foregroundBanner ? (
-            <TouchableOpacity
-              activeOpacity={0.92}
-              style={[styles.foregroundBanner, { top: insets.top + (notificationPermissionNotice ? 108 : 12) }]}
-              onPress={() => void openForegroundBanner()}
-            >
-              <View style={styles.foregroundBannerHeader}>
-                <Text style={styles.foregroundBannerLabel}>Planner reminder</Text>
-                <TouchableOpacity onPress={dismissForegroundBanner} hitSlop={8}>
-                  <Text style={styles.foregroundBannerDismiss}>Dismiss</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.foregroundBannerTitle}>{foregroundBanner.title}</Text>
-              <Text style={styles.foregroundBannerBody}>{foregroundBanner.body}</Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
       </ThemeProvider>
     </QueryClientProvider>
@@ -85,6 +74,13 @@ type NotificationNavigationTarget = {
   notificationId?: string;
 };
 
+type PendingNotificationAction = {
+  kind: 'complete-first-daily-task';
+  taskId: string;
+  occurrenceDate?: Date;
+  notificationId?: string;
+};
+
 function useNotificationRouting() {
   const router = useRouter();
   const user = useStore((state) => state.user);
@@ -92,14 +88,10 @@ function useNotificationRouting() {
   const fetchNotifications = useStore((state) => state.fetchNotifications);
   const fetchNotificationSummary = useStore((state) => state.fetchNotificationSummary);
   const markNotificationRead = useStore((state) => state.markNotificationRead);
+  const updateTaskStatus = useStore((state) => state.updateTaskStatus);
   const handledResponses = useRef(new Set<string>());
   const [pendingTarget, setPendingTarget] = useState<NotificationNavigationTarget | null>(null);
-  const [foregroundBanner, setForegroundBanner] = useState<{
-    title: string;
-    body: string;
-    target: NotificationNavigationTarget;
-  } | null>(null);
-  const bannerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingNotificationAction | null>(null);
 
   useEffect(() => {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -109,20 +101,6 @@ function useNotificationRouting() {
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       if (!user) {
         return;
-      }
-
-      const target = resolveNotificationTargetFromData(notification.request.content.data);
-      const title = notification.request.content.title;
-      const body = notification.request.content.body;
-
-      if (title && body && target) {
-        setForegroundBanner({ title, body, target });
-        if (bannerTimeoutRef.current) {
-          clearTimeout(bannerTimeoutRef.current);
-        }
-        bannerTimeoutRef.current = setTimeout(() => {
-          setForegroundBanner(null);
-        }, 5000);
       }
 
       void Promise.allSettled([fetchNotifications(), fetchNotificationSummary()]);
@@ -137,21 +115,19 @@ function useNotificationRouting() {
     return () => {
       responseSubscription.remove();
       receivedSubscription.remove();
-      if (bannerTimeoutRef.current) {
-        clearTimeout(bannerTimeoutRef.current);
-      }
     };
 
     function handleNotificationResponse(
       response: Notifications.NotificationResponse,
     ) {
-      const target = resolveNotificationTarget(response);
+      const action = resolveNotificationAction(response);
+      const target = action ? null : resolveNotificationTarget(response);
 
-      if (!target) {
+      if (!target && !action) {
         return;
       }
 
-      const handledKey = target.notificationId ?? response.notification.request.identifier;
+      const handledKey = action?.notificationId ?? target?.notificationId ?? response.notification.request.identifier;
 
       if (handledResponses.current.has(handledKey)) {
         return;
@@ -160,11 +136,23 @@ function useNotificationRouting() {
       handledResponses.current.add(handledKey);
 
       if (!isInitialized || !user) {
+        if (action) {
+          setPendingAction(action);
+          return;
+        }
+
         setPendingTarget(target);
         return;
       }
 
-      void completeNotificationNavigation(target);
+      if (action) {
+        void completeNotificationAction(action);
+        return;
+      }
+
+      if (target) {
+        void completeNotificationNavigation(target);
+      }
     }
   }, [
     fetchNotificationSummary,
@@ -172,6 +160,7 @@ function useNotificationRouting() {
     isInitialized,
     markNotificationRead,
     router,
+    updateTaskStatus,
     user,
   ]);
 
@@ -191,6 +180,16 @@ function useNotificationRouting() {
     });
   }, [isInitialized, pendingTarget, router, user]);
 
+  useEffect(() => {
+    if (!pendingAction || !isInitialized || !user) {
+      return;
+    }
+
+    void completeNotificationAction(pendingAction).finally(() => {
+      setPendingAction(null);
+    });
+  }, [isInitialized, pendingAction, user]);
+
   async function completeNotificationNavigation(target: NotificationNavigationTarget) {
     if (target.notificationId) {
       await Promise.allSettled([
@@ -202,24 +201,61 @@ function useNotificationRouting() {
     router.push(target.route);
   }
 
-  return {
-    foregroundBanner,
-    dismissForegroundBanner: () => setForegroundBanner(null),
-    openForegroundBanner: async () => {
-      if (!foregroundBanner) {
-        return;
-      }
+  async function completeNotificationAction(action: PendingNotificationAction) {
+    await updateTaskStatus(action.taskId, {
+      status: TaskStatus.DONE,
+      occurrenceDate: action.occurrenceDate,
+    });
 
-      setForegroundBanner(null);
-      await completeNotificationNavigation(foregroundBanner.target);
-    },
-  };
+    if (action.notificationId) {
+      await Promise.allSettled([
+        markNotificationRead(action.notificationId),
+        fetchNotifications(),
+      ]);
+    }
+  }
 }
 
 function resolveNotificationTarget(
   response: Notifications.NotificationResponse,
 ): NotificationNavigationTarget | null {
   return resolveNotificationTargetFromData(response.notification.request.content.data);
+}
+
+function resolveNotificationAction(
+  response: Notifications.NotificationResponse,
+): PendingNotificationAction | null {
+  if (response.actionIdentifier !== COMPLETE_FIRST_DAILY_TASK_ACTION_ID) {
+    return null;
+  }
+
+  const data = response.notification.request.content.data;
+
+  if (!isDailyTasksNotificationData(data) || !data || typeof data !== 'object' || Array.isArray(data)) {
+    return null;
+  }
+
+  const taskId = typeof data.firstTaskId === 'string'
+    ? data.firstTaskId
+    : typeof data.taskId === 'string'
+      ? data.taskId
+      : null;
+
+  if (!taskId) {
+    return null;
+  }
+
+  const occurrenceDate = typeof data.occurrenceDate === 'string'
+    ? new Date(data.occurrenceDate)
+    : undefined;
+  const notificationId = typeof data.notificationId === 'string' ? data.notificationId : undefined;
+
+  return {
+    kind: 'complete-first-daily-task',
+    taskId,
+    occurrenceDate: occurrenceDate && !Number.isNaN(occurrenceDate.getTime()) ? occurrenceDate : undefined,
+    notificationId,
+  };
 }
 
 function resolveNotificationTargetFromData(
@@ -236,6 +272,7 @@ function resolveNotificationTargetFromData(
     notificationId?: unknown;
     goalId?: unknown;
     taskId?: unknown;
+    notificationKind?: unknown;
   };
 
   const notificationId = typeof notificationData.notificationId === 'string'
@@ -244,6 +281,7 @@ function resolveNotificationTargetFromData(
   const goalId = typeof notificationData.goalId === 'string' ? notificationData.goalId : undefined;
   const taskId = typeof notificationData.taskId === 'string' ? notificationData.taskId : undefined;
   const type = typeof notificationData.type === 'string' ? notificationData.type : undefined;
+  const notificationKind = typeof notificationData.notificationKind === 'string' ? notificationData.notificationKind : undefined;
 
   if (goalId) {
     return {
@@ -259,7 +297,12 @@ function resolveNotificationTargetFromData(
     };
   }
 
-  if (type === NotificationType.REMINDER || type === NotificationType.SYSTEM) {
+  if (
+    type === DAILY_TASKS_NOTIFICATION_KIND ||
+    notificationKind === DAILY_TASKS_NOTIFICATION_KIND ||
+    type === NotificationType.REMINDER ||
+    type === NotificationType.SYSTEM
+  ) {
     return {
       route: '/(tabs)/calendar',
       notificationId,
@@ -304,44 +347,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginTop: 2,
-  },
-  foregroundBanner: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    backgroundColor: '#1A1026',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#A855F744',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 6,
-  },
-  foregroundBannerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  foregroundBannerLabel: {
-    color: '#C084FC',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  foregroundBannerDismiss: {
-    color: '#AFAFAF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  foregroundBannerTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  foregroundBannerBody: {
-    color: '#D0D0D0',
-    fontSize: 13,
-    lineHeight: 18,
   },
 });

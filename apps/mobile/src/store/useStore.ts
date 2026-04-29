@@ -302,7 +302,7 @@ export const useStore = create<AppState>((set, get) => ({
 
       await Promise.all([
         get().fetchTasks(goalId),
-        get().fetchGoal(goalId),
+        ...(goalId ? [get().fetchGoal(goalId)] : []),
         get().fetchNotifications(),
         get().fetchNotificationSummary(),
       ]);

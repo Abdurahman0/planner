@@ -22,8 +22,9 @@ const TIME_PATTERN = /^(?:([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 export class CreateTaskDto {
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsOptional()
   @IsUUID()
-  goalId!: string;
+  goalId?: string;
 
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()

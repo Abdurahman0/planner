@@ -23,7 +23,7 @@ export interface TaskOccurrence {
 
 export interface RecurringTaskLike {
   id: string;
-  goalId: string;
+  goalId?: string;
   title: string;
   description?: string;
   status: string;

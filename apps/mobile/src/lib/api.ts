@@ -34,7 +34,7 @@ export interface CreateGoalInput {
 }
 
 export interface CreateTaskInput {
-  goalId: string;
+  goalId?: string;
   title: string;
   description?: string;
   type: TaskType;
@@ -75,7 +75,7 @@ export interface UpdateTaskStatusInput {
 export interface TaskStatusUpdateResult {
   task: Task;
   progressLog: TaskProgressLog;
-  projectedDate: Date;
+  projectedDate: Date | null;
 }
 
 export interface RegisterDeviceInput {
@@ -137,7 +137,8 @@ interface ApiGoal {
 
 interface ApiTask {
   id: string;
-  goalId: string;
+  userId?: string;
+  goalId?: string | null;
   planId?: string | null;
   milestoneId?: string | null;
   title: string;
@@ -372,7 +373,7 @@ export async function updateTaskStatusRequest(token: string, taskId: string, inp
   const response = await request<{
     task: ApiTask;
     progressLog: ApiProgressLog;
-    projectedDate: string;
+    projectedDate: string | null;
   }>(`/tasks/${taskId}/status`, {
     method: 'PATCH',
     token,
@@ -385,7 +386,7 @@ export async function updateTaskStatusRequest(token: string, taskId: string, inp
   return {
     task: normalizeTask(response.task),
     progressLog: normalizeProgressLog(response.progressLog),
-    projectedDate: new Date(response.projectedDate),
+    projectedDate: response.projectedDate ? new Date(response.projectedDate) : null,
   };
 }
 
@@ -536,6 +537,8 @@ function normalizeGoal(goal: ApiGoal): Goal {
 function normalizeTask(task: ApiTask): Task {
   return {
     ...task,
+    userId: task.userId ?? undefined,
+    goalId: task.goalId ?? undefined,
     planId: task.planId ?? undefined,
     milestoneId: task.milestoneId ?? undefined,
     description: task.description ?? undefined,

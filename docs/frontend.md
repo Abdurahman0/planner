@@ -61,8 +61,8 @@ Implemented:
 - Expo push token registration to backend using JWT-protected device registration
 - Android notification channel: `planner-reminders`
 - foreground notification presentation through `expo-notifications`
-- in-app foreground notification banner fallback
 - notification tap handling
+- daily-task notification action handling
 
 In-app notifications vs push notifications:
 
@@ -74,6 +74,7 @@ In-app notifications vs push notifications:
 Current tap behavior:
 
 - notification with `goalId` opens `goals/[id]`
+- daily-task notification body tap opens Planner Day view
 - reminder/system notification without a goal target opens Planner
 - other notifications without a goal target open Profile/Notifications
 
@@ -112,9 +113,13 @@ Daily unscheduled task notification MVP:
 - if more tasks remain, the body ends with `+N more tasks`
 - ordering is oldest created task first
 - when all incomplete unscheduled tasks for today are done, the local reminder is cleared
+- Android system daily-task notifications register a `✓ Done` action
+- the `✓ Done` action completes the first visible daily task through the secure backend status endpoint when the app resumes from the notification action
+- after completion, the next task moves into the top 3 and the reminder refreshes or clears
 - if the notification is swiped away, it can appear again on a later app sync or backend sweep while incomplete daily tasks remain
 - identical daily-task reminders are not pushed again on every sweep; unchanged content is re-sent only after a cooldown or when the task list changes
-- this is not a verified true Android ongoing/non-dismissible notification; it is the safest Expo-compatible MVP
+- Expo/Android notification actions do not support a custom animated circle/tick control here; the supported MVP is a `✓ Done` action button
+- this is not a verified true Android ongoing/non-dismissible notification or guaranteed killed-app background completion; it is the safest Expo-compatible MVP
 
 Current production-facing notification UX:
 
@@ -122,11 +127,13 @@ Current production-facing notification UX:
 - temporary push-debug panels have been removed from the UI
 - Profile no longer renders raw backend notification records
 - the in-app Profile list is not the primary notification experience
+- custom in-app daily reminder banners have been removed; system notifications are primary
 
 Foreground vs background behavior:
 
-- foreground: Expo handler requests banner/list presentation, and the app also shows an in-app fallback banner
+- foreground: Expo handler requests native banner/list presentation through the OS notification surface
 - background/closed app: Android system notification depends on backend-generated Expo push delivery, not the in-app list
+- the `✓ Done` action is handled safely when the app resumes from the notification action
 - Profile keeps the authenticated test-push action, but it is not the primary user notification surface
 
 ## Planner UX
@@ -149,7 +156,7 @@ Implemented:
 - tap empty hour to quick-add task
 - `Plan Day` floating action
 - `Plan Day` floating action anchored from the calendar screen root, just above the bottom tab bar
-- `Plan Day` uses `Math.max(insets.bottom, 8)` as its bottom anchor
+- `Plan Day` and other shared floating CTAs use `Math.max(insets.bottom - 4, 2)` as the bottom anchor
 - `PlanDaySheet`
 - add/edit routine blocks
 - quick task scheduling modal
@@ -201,12 +208,14 @@ Current behavior:
 
 - task creation works from goal detail
 - task creation works from planner quick add
+- tasks can be created with a goal or as standalone tasks without a goal
 - tapped-hour quick add pre-fills:
   - `plannedDate`
   - `startTime`
   - `endTime = startTime + 1 hour`
 - simplified modal keeps advanced options hidden until needed
 - recurrence controls live under `More options`
+- goal selection now includes `No goal / Standalone task`
 - task and schedule modals are keyboard-safe:
   - scroll remains available when the Android keyboard is open
   - description and footer actions stay reachable
@@ -244,7 +253,7 @@ Implemented:
   - tab scene padding
   - planner scroll content padding
   - floating action positioning
-- floating CTA buttons on main tabs use `Math.max(insets.bottom, 8)` instead of tab-bar-height anchoring or larger artificial offsets
+- floating CTA buttons on main tabs use `Math.max(insets.bottom - 4, 2)` instead of tab-bar-height anchoring or larger artificial offsets
 
 Edge-to-edge note:
 
@@ -318,6 +327,7 @@ Troubleshooting `No push-ready Android device is registered yet`:
   - confirm it has no `startTime` / `endTime`
   - confirm it is still incomplete
   - confirm the app is running on a physical Android device with notification permission granted
+  - if the `✓ Done` action was pressed from a killed app, reopen/resume the app once so the secure completion request can run
 
 ## Current Limitations
 

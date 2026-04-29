@@ -25,6 +25,10 @@ export async function setNotificationChannelAsync() {
   return undefined;
 }
 
+export async function setNotificationCategoryAsync() {
+  return undefined;
+}
+
 export async function getPermissionsAsync() {
   return {
     status: resolvePermissionStatus(),

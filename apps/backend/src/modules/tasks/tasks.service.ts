@@ -26,7 +26,9 @@ export class TasksService {
     source: TaskSource = TaskSource.manual,
     prismaClient: PrismaClientLike = this.prisma,
   ) {
-    await this.findOwnedGoalOrThrow(userId, dto.goalId, prismaClient);
+    if (dto.goalId) {
+      await this.findOwnedGoalOrThrow(userId, dto.goalId, prismaClient);
+    }
     this.assertValidTaskState(dto.type, {
       startTime: dto.startTime,
       endTime: dto.endTime,
@@ -36,11 +38,14 @@ export class TasksService {
     this.assertValidRecurrence(dto.recurrenceType, dto.recurrenceDaysOfWeek, dto.plannedDate, dto.recurrenceEndDate);
 
     const order = await prismaClient.task.count({
-      where: { goalId: dto.goalId },
+      where: dto.goalId
+        ? { userId, goalId: dto.goalId }
+        : { userId, goalId: null },
     });
 
     return prismaClient.task.create({
       data: {
+        userId,
         goalId: dto.goalId,
         title: dto.title,
         description: dto.description,
@@ -68,13 +73,7 @@ export class TasksService {
     }
 
     const tasks = await this.prisma.task.findMany({
-      where: goalId
-        ? { goalId }
-        : {
-            goal: {
-              userId,
-            },
-          },
+      where: goalId ? { userId, goalId } : { userId },
       select: this.taskSelect,
       orderBy: [
         { plannedDate: 'asc' },
@@ -244,15 +243,9 @@ export class TasksService {
         select: this.taskProgressLogSelect,
       });
 
-      const goal = await tx.goal.findUniqueOrThrow({
-        where: { id: task.goalId },
-        select: {
-          id: true,
-          userId: true,
-        },
-      });
-
-      const projectedDate = await this.recalculateGoalProjectedDate(goal.userId, goal.id, tx);
+      const projectedDate = task.goalId
+        ? await this.recalculateGoalProjectedDate(userId, task.goalId, tx)
+        : null;
 
       return {
         task: occurrenceDate
@@ -391,9 +384,7 @@ export class TasksService {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
-        goal: {
-          userId,
-        },
+        userId,
       },
       select: this.taskSelect,
     });
@@ -510,6 +501,7 @@ export class TasksService {
 
   private readonly taskSelect = {
     id: true,
+    userId: true,
     goalId: true,
     planId: true,
     milestoneId: true,

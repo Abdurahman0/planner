@@ -113,6 +113,7 @@ model User {
   passwordHash      String
   subscriptionPlan  SubscriptionPlan   @default(free)
   goals             Goal[]
+  tasks             Task[]
   devices           UserDevice[]
   subscriptions     Subscription[]
   availabilitySlots AvailabilitySlot[]
@@ -231,8 +232,10 @@ model Milestone {
 
 model Task {
   id               String            @id @default(uuid())
-  goalId           String
-  goal             Goal              @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId           String?
+  goal             Goal?             @relation(fields: [goalId], references: [id], onDelete: SetNull)
   planId           String?
   plan             Plan?             @relation(fields: [planId], references: [id], onDelete: SetNull)
   milestoneId      String?
@@ -259,6 +262,7 @@ model Task {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
+  @@index([userId])
   @@index([goalId])
   @@index([planId])
   @@index([milestoneId])

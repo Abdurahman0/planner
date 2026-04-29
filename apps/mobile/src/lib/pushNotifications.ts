@@ -13,6 +13,8 @@ export const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
 export const PLANNER_NOTIFICATION_ACCENT = '#A855F7';
 export const NOTIFICATION_PERMISSION_MESSAGE = 'Enable notifications to receive planner reminders and streak updates.';
 export const DAILY_TASKS_NOTIFICATION_KIND = 'daily_tasks';
+export const DAILY_TASKS_NOTIFICATION_CATEGORY_ID = 'daily_tasks';
+export const COMPLETE_FIRST_DAILY_TASK_ACTION_ID = 'COMPLETE_FIRST_DAILY_TASK';
 
 let lastDailyTaskNotificationSignature: string | null = null;
 
@@ -37,6 +39,16 @@ Notifications.setNotificationHandler({
 });
 
 export async function configurePushNotificationsAsync() {
+  await Notifications.setNotificationCategoryAsync(DAILY_TASKS_NOTIFICATION_CATEGORY_ID, [
+    {
+      identifier: COMPLETE_FIRST_DAILY_TASK_ACTION_ID,
+      buttonTitle: '✓ Done',
+      options: {
+        opensAppToForeground: true,
+      },
+    },
+  ]);
+
   if (Platform.OS !== 'android') {
     return;
   }
@@ -192,10 +204,13 @@ export async function syncDailyTaskNotificationAsync(tasks: Task[], now = new Da
       title: 'Daily tasks',
       body,
       sound: 'default',
+      categoryIdentifier: DAILY_TASKS_NOTIFICATION_CATEGORY_ID,
       data: {
-        type: NotificationType.SYSTEM,
+        type: DAILY_TASKS_NOTIFICATION_KIND,
         notificationKind: DAILY_TASKS_NOTIFICATION_KIND,
-        taskId: firstTask.seriesId ?? firstTask.id,
+        taskId: firstTask.id,
+        firstTaskId: firstTask.seriesId ?? firstTask.id,
+        taskIds: dailyTasks.slice(0, 3).map((task) => task.seriesId ?? task.id),
         occurrenceDate: (firstTask.occurrenceDate ?? firstTask.plannedDate).toISOString(),
       },
     },
@@ -232,6 +247,18 @@ async function dismissPresentedNotificationsAsync(
 
 function isExpoPushToken(token: string) {
   return /^(ExponentPushToken|ExpoPushToken)\[[^\]\s]+\]$/.test(token);
+}
+
+export function isDailyTasksNotificationData(data: unknown) {
+  return Boolean(
+    data &&
+    typeof data === 'object' &&
+    !Array.isArray(data) &&
+    (
+      ('type' in data && data.type === DAILY_TASKS_NOTIFICATION_KIND) ||
+      ('notificationKind' in data && data.notificationKind === DAILY_TASKS_NOTIFICATION_KIND)
+    ),
+  );
 }
 
 function extractSafePushError(error: unknown) {

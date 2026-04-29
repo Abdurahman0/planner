@@ -23,6 +23,7 @@
 - floating planner actions must be anchored from the screen root, not from scrollable content
 - planner screens must avoid double-counting tab bar height and safe-area bottom padding
 - planner floating actions should anchor from `insets.bottom` with only a minimal offset
+- shared floating CTAs currently anchor with `Math.max(insets.bottom - 4, 2)` and should not drift upward with extra padding
 - planner bottom spacing should be the minimum needed to keep final content and actions visible
 - main tab pages should use the shared floating CTA pattern instead of ad hoc page-specific floating buttons
 - tab bars must remain safe-area aware and must not introduce bottom seams or system-button overlap
@@ -40,12 +41,14 @@
 - if notification permission is denied, use a non-blocking in-app notice instead of blocking the user flow
 - keep in-app notifications and push notifications conceptually separate
 - do not treat the in-app notification list as the primary notification experience when system push exists
+- do not duplicate daily-task reminders with custom in-app banners when the OS notification already exists
 - Expo push token registration failures must not break app startup and should retry safely
 - Expo push token creation must resolve the EAS project ID from runtime config, not guess
 - Expo Android push registration must use an Expo push token, not a raw FCM token
 - Android remote push builds must include valid Firebase client config plus EAS FCM credentials
 - production mobile code must not log raw API URLs, request bodies, push tokens, or backend response payloads
 - do not claim true Android non-dismissible ongoing notifications unless verified with native support beyond current Expo limits
+- do not claim killed-app background task completion from notification actions unless it is verified; resume-to-complete fallback is acceptable and should be documented accurately
 - unscheduled daily-task reminders must stay non-sensitive and should list at most 3 task titles
 - do not ship temporary debug panels that expose internal push-registration state in the production UI
 - never render raw backend notification records in Profile as a production-facing experience
@@ -60,6 +63,7 @@
 - keep quota and subscription checks in backend
 - keep recurrence rules and occurrence expansion in backend/shared logic, not ad hoc per-screen client code
 - protect recurrence endpoints with the same ownership and validation rules as regular tasks/availability
+- standalone tasks must remain user-scoped by direct task ownership, not only by an optional goal relation
 - keep push device registration JWT-protected
 - keep push payloads free of secrets and private account data
 - keep internal cron/sweep endpoints protected with a server-side secret only
