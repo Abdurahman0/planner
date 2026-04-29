@@ -93,6 +93,14 @@ enum NotificationType {
   system
 }
 
+enum RecurrenceType {
+  none
+  daily
+  weekly
+  monthly
+  yearly
+}
+
 enum NotificationStatus {
   unread
   read
@@ -243,7 +251,11 @@ model Task {
   targetUnit       String?
   source           TaskSource        @default(manual)
   order            Int               @default(0)
+  recurrenceType   RecurrenceType    @default(none)
+  recurrenceDaysOfWeek Int[]         @default([])
+  recurrenceEndDate DateTime?
   progressLogs     TaskProgressLog[]
+  occurrences      TaskOccurrence[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -263,6 +275,7 @@ model TaskProgressLog {
   completionPercent Float?
   completedValue    Float?
   note              String?
+  occurrenceDate    DateTime?
   loggedAt          DateTime   @default(now())
 
   @@index([userId])
@@ -270,15 +283,36 @@ model TaskProgressLog {
   @@index([loggedAt])
 }
 
+model TaskOccurrence {
+  id                String      @id @default(uuid())
+  taskId            String
+  task              Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  occurrenceDate    DateTime
+  status            TaskStatus  @default(todo)
+  completionPercent Float?
+  completedValue    Float?
+  note              String?
+  completedDate     DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([taskId, occurrenceDate])
+  @@index([occurrenceDate])
+}
+
 model AvailabilitySlot {
   id        String           @id @default(uuid())
   userId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   dayOfWeek Int
+  startDate DateTime         @default(now())
   startTime String
   endTime   String
   type      AvailabilityType
   label     String?
+  recurrenceType RecurrenceType @default(weekly)
+  recurrenceDaysOfWeek Int[]    @default([])
+  recurrenceEndDate DateTime?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 

@@ -28,10 +28,14 @@ Supported block types:
 Each block supports:
 
 - `dayOfWeek`
+- `startDate`
 - `startTime`
 - `endTime`
 - `type`
 - optional `label`
+- `recurrenceType`
+- optional `recurrenceDaysOfWeek`
+- optional `recurrenceEndDate`
 
 ## Scheduled vs Unscheduled Tasks
 
@@ -53,6 +57,24 @@ Task has:
 
 Unscheduled tasks stay visible in their own section until scheduled.
 
+Recurring tasks and routine blocks support:
+
+- `none`
+- `daily`
+- `weekly`
+- `monthly`
+- `yearly`
+
+Weekly recurrence can specify explicit weekdays.
+
+Current series behavior:
+
+- calendar views expand occurrences for the visible date range
+- the app does not pre-create thousands of task rows for long-running series
+- monthly/yearly recurrence clamps to the last valid calendar day when the exact day does not exist in a target month or year
+- updating from the mobile planner currently updates the whole series
+- single-occurrence edit/delete is not implemented yet
+
 ## Day / Week / Month Behavior
 
 ### Day View
@@ -69,6 +91,8 @@ Implemented:
 - explicit end-of-day marker
 - routine blocks rendered by time
 - scheduled tasks rendered by duration
+- recurring task occurrences rendered inside the same day timeline
+- recurring routine-block occurrences rendered inside the same day timeline
 - tap hour to add task
 - `Plan Day` sheet
 - quick task defaults from tapped hour
@@ -84,6 +108,7 @@ Implemented:
 - schedule density
 - scheduled/unscheduled counts
 - task status indicators
+- recurring occurrences included in weekly summaries
 
 ### Month View
 
@@ -93,6 +118,7 @@ Implemented:
 - task counts
 - goal indicators
 - completed/failed markers
+- recurring occurrences included in monthly counts/indicators
 
 ## Deadline Projection Logic
 
@@ -120,6 +146,35 @@ Strong areas:
 - quick add workflow
 - scheduled vs unscheduled distinction
 - Android-safe modal actions for planner sheets
+- recurring series now modeled and rendered across planner views
+
+## Daily Task Notification Behavior
+
+Implemented MVP:
+
+- incomplete unscheduled tasks for today participate in reminder logic
+- criteria:
+  - `plannedDate = today`
+  - `startTime = null`
+  - `endTime = null`
+  - `status != done`
+- ordering:
+  - oldest created task first
+- notification body:
+  - up to 3 task titles
+  - then `+N more tasks` if more remain
+- completing tasks changes the next notification refresh
+- if no incomplete unscheduled tasks remain, the local daily-task reminder is cleared
+- identical daily-task notifications are deduplicated so the backend does not push the same payload every sweep
+
+Current platform limitation:
+
+- true Android non-dismissible ongoing notifications are not claimed in the current Expo/EAS setup
+- current behavior is a safe Expo-compatible MVP:
+  - backend sweep can re-send the reminder while incomplete tasks remain
+  - unchanged reminder content is throttled by cooldown/dedupe instead of being sent every sweep
+  - the app can mirror/update a local reminder while it is open and synced
+  - if the user swipes it away, it may return on the next sync/sweep
 
 Still weak:
 

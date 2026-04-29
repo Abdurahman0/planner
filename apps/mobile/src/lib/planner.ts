@@ -1,4 +1,12 @@
-import { AvailabilitySlot, AvailabilityType, Task, TaskStatus } from '@packages/shared';
+import {
+  AvailabilitySlot,
+  AvailabilityType,
+  expandAvailabilityForRange,
+  expandTasksForRange,
+  getRecurrenceLabel,
+  Task,
+  TaskStatus,
+} from '@packages/shared';
 
 export const PLANNER_START_HOUR = 0;
 export const PLANNER_END_HOUR = 24;
@@ -63,7 +71,7 @@ export function getTimelineHeight(startTime: string, endTime: string) {
 }
 
 export function getTasksForDate(tasks: Task[], date: Date) {
-  return tasks.filter((task) => isSameDay(task.plannedDate, date));
+  return expandTasksForRange(tasks, date, date).filter((task) => isSameDay(task.occurrenceDate ?? task.plannedDate, date));
 }
 
 export function getScheduledTasks(tasks: Task[]) {
@@ -85,9 +93,17 @@ export function getUnscheduledTasks(tasks: Task[]) {
 }
 
 export function getAvailabilityForDate(availability: AvailabilitySlot[], date: Date) {
-  return availability
-    .filter((slot) => slot.dayOfWeek === date.getDay())
+  return expandAvailabilityForRange(availability, date, date)
+    .filter((slot) => isSameDay(slot.occurrenceDate ?? slot.startDate ?? date, date))
     .sort((left, right) => parseTimeToMinutes(left.startTime) - parseTimeToMinutes(right.startTime));
+}
+
+export function getTaskRecurrenceLabel(task: Task) {
+  return getRecurrenceLabel(task.recurrenceType);
+}
+
+export function getAvailabilityRecurrenceLabel(slot: AvailabilitySlot) {
+  return getRecurrenceLabel(slot.recurrenceType);
 }
 
 export function getAvailabilityLabel(slot: AvailabilitySlot) {

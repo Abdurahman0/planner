@@ -9,6 +9,7 @@ import { SystemBars } from 'react-native-edge-to-edge';
 import { useAppBootstrap } from '../src/hooks/useAppBootstrap';
 import { NotificationType } from '@packages/shared';
 import { useStore } from '../src/store/useStore';
+import { syncDailyTaskNotificationAsync } from '../src/lib/pushNotifications';
 
 const queryClient = new QueryClient();
 const APP_BACKGROUND_COLOR = '#000000';
@@ -25,8 +26,19 @@ function AppShell() {
   useAppBootstrap();
   const notificationPermissionNotice = useStore((state) => state.notificationPermissionNotice);
   const clearNotificationPermissionNotice = useStore((state) => state.clearNotificationPermissionNotice);
+  const tasks = useStore((state) => state.tasks);
+  const user = useStore((state) => state.user);
+  const isInitialized = useStore((state) => state.isInitialized);
   const { foregroundBanner, dismissForegroundBanner, openForegroundBanner } = useNotificationRouting();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (!isInitialized) {
+      return;
+    }
+
+    void syncDailyTaskNotificationAsync(user ? tasks : []);
+  }, [isInitialized, tasks, user]);
 
   return (
     <QueryClientProvider client={queryClient}>

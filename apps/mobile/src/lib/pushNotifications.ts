@@ -2,10 +2,19 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import {
+  buildDailyTaskNotificationBody,
+  getIncompleteUnscheduledTasksForDay,
+  NotificationType,
+  Task,
+} from '@packages/shared';
 
 export const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
 export const PLANNER_NOTIFICATION_ACCENT = '#A855F7';
 export const NOTIFICATION_PERMISSION_MESSAGE = 'Enable notifications to receive planner reminders and streak updates.';
+export const DAILY_TASKS_NOTIFICATION_KIND = 'daily_tasks';
+
+let lastDailyTaskNotificationSignature: string | null = null;
 
 export interface PushRegistrationResult {
   permissionStatus: 'granted' | 'denied' | 'unavailable';
@@ -40,6 +49,7 @@ export async function configurePushNotificationsAsync() {
     enableLights: true,
     lightColor: PLANNER_NOTIFICATION_ACCENT,
     sound: 'default',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
 }
 
@@ -140,6 +150,84 @@ function resolveExpoProjectId() {
   }
 
   return processEnv ?? undefined;
+}
+
+export async function syncDailyTaskNotificationAsync(tasks: Task[], now = new Date()) {
+  if (Platform.OS === 'web' || !Device.isDevice) {
+    return;
+  }
+
+  const presentedNotifications = await getPresentedDailyTaskNotificationsAsync();
+  const permissions = await Notifications.getPermissionsAsync();
+
+  if (permissions.status !== 'granted') {
+    await dismissPresentedNotificationsAsync(presentedNotifications);
+    lastDailyTaskNotificationSignature = null;
+    return;
+  }
+
+  const dailyTasks = getIncompleteUnscheduledTasksForDay(tasks, now);
+
+  if (dailyTasks.length === 0) {
+    await dismissPresentedNotificationsAsync(presentedNotifications);
+    lastDailyTaskNotificationSignature = null;
+    return;
+  }
+
+  const body = buildDailyTaskNotificationBody(dailyTasks);
+  const firstTask = dailyTasks[0];
+  const signature = [
+    now.toDateString(),
+    ...dailyTasks.map((task) => `${task.seriesId ?? task.id}:${task.status}:${(task.occurrenceDate ?? task.plannedDate).toISOString()}`),
+  ].join('|');
+
+  if (signature === lastDailyTaskNotificationSignature && presentedNotifications.length > 0) {
+    return;
+  }
+
+  await dismissPresentedNotificationsAsync(presentedNotifications);
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Daily tasks',
+      body,
+      sound: 'default',
+      data: {
+        type: NotificationType.SYSTEM,
+        notificationKind: DAILY_TASKS_NOTIFICATION_KIND,
+        taskId: firstTask.seriesId ?? firstTask.id,
+        occurrenceDate: (firstTask.occurrenceDate ?? firstTask.plannedDate).toISOString(),
+      },
+    },
+    trigger: null,
+  });
+
+  lastDailyTaskNotificationSignature = signature;
+}
+
+async function getPresentedDailyTaskNotificationsAsync() {
+  const presentedNotifications = await Notifications.getPresentedNotificationsAsync();
+
+  return presentedNotifications.filter((notification) => {
+    const data = notification.request.content.data;
+    return Boolean(
+      data &&
+      typeof data === 'object' &&
+      !Array.isArray(data) &&
+      'notificationKind' in data &&
+      data.notificationKind === DAILY_TASKS_NOTIFICATION_KIND,
+    );
+  });
+}
+
+async function dismissPresentedNotificationsAsync(
+  notifications: Array<{ request: { identifier: string } }>,
+) {
+  await Promise.allSettled(
+    notifications.map((notification) =>
+      Notifications.dismissNotificationAsync(notification.request.identifier),
+    ),
+  );
 }
 
 function isExpoPushToken(token: string) {

@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Task, TaskSource, TaskStatus } from '@packages/shared';
-import { CheckCircle2, Circle, AlertCircle, Clock } from 'lucide-react-native';
+import { CheckCircle2, Circle, AlertCircle, Clock, Repeat2 } from 'lucide-react-native';
+import { getTaskRecurrenceLabel } from '../lib/planner';
 
 interface TaskItemProps {
   task: Task;
@@ -34,6 +35,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle }) => {
         <Text style={[styles.title, task.status === TaskStatus.DONE && styles.titleCompleted]}>
           {task.title}
         </Text>
+        {task.recurrenceType && task.recurrenceType !== 'none' ? (
+          <View style={styles.recurrenceBadge}>
+            <Repeat2 size={12} color="#C084FC" />
+            <Text style={styles.recurrenceBadgeText}>{getTaskRecurrenceLabel(task)}</Text>
+          </View>
+        ) : null}
         {task.description && (
           <Text style={styles.description}>{task.description}</Text>
         )}
@@ -80,6 +87,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     marginTop: 2,
+  },
+  recurrenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#1A1026',
+    borderWidth: 1,
+    borderColor: '#A855F744',
+  },
+  recurrenceBadgeText: {
+    color: '#C084FC',
+    fontSize: 11,
+    fontWeight: '600',
   },
   aiBadge: {
     backgroundColor: '#A855F722',

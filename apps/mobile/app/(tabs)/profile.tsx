@@ -1,53 +1,32 @@
 import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useStore } from '../../src/store/useStore';
 import { SubscriptionPlan } from '@packages/shared';
 import { Crown, Settings, LogOut, ChevronRight, BellRing, TestTube2 } from 'lucide-react-native';
-import { NotificationsPanel } from '../../src/components/NotificationsPanel';
 import { FLOATING_CTA_CLEARANCE, FloatingTabCta } from '../../src/components/FloatingTabCta';
 
 export default function ProfileScreen() {
   const user = useStore((state) => state.user);
-  const notifications = useStore((state) => state.notifications);
-  const notificationSummary = useStore((state) => state.notificationSummary);
-  const pushDebug = useStore((state) => state.pushDebug);
   const logout = useStore((state) => state.logout);
-  const fetchNotifications = useStore((state) => state.fetchNotifications);
-  const fetchNotificationSummary = useStore((state) => state.fetchNotificationSummary);
-  const markNotificationRead = useStore((state) => state.markNotificationRead);
-  const refreshNotifications = useStore((state) => state.refreshNotifications);
   const sendTestPush = useStore((state) => state.sendTestPush);
   const isPremium = user?.subscriptionPlan !== SubscriptionPlan.FREE;
   const router = useRouter();
   const [isSendingTestPush, setIsSendingTestPush] = useState(false);
-
-  useEffect(() => {
-    void Promise.all([fetchNotifications(), fetchNotificationSummary()]);
-  }, [fetchNotificationSummary, fetchNotifications]);
 
   const handleLogout = async () => {
     await logout();
     router.replace('/auth');
   };
 
-  const handleRefreshNotifications = async () => {
-    try {
-      await refreshNotifications();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to refresh notifications';
-      Alert.alert('Refresh Failed', message);
-    }
-  };
-
   const handleSendTestPush = async () => {
     setIsSendingTestPush(true);
 
     try {
-      const result = await sendTestPush();
+      await sendTestPush();
       Alert.alert(
         'Test Notification Sent',
-        `Devices: ${result.deviceCount}\nAttempted: ${result.pushesAttempted}\nSent: ${result.sentCount}\nInvalid tokens: ${result.invalidTokenCount}`,
+        'If this device is registered correctly, Android should show the notification shortly.',
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to send test notification';
@@ -125,36 +104,6 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Push Debug</Text>
-            <View style={styles.debugCard}>
-              <DebugRow label="Permission" value={pushDebug.permissionStatus} />
-              <DebugRow label="Project ID" value={pushDebug.projectIdPresent ? 'present' : 'missing'} />
-              <DebugRow label="Token created" value={pushDebug.tokenCreated ? 'yes' : 'no'} />
-              <DebugRow label="Backend registration" value={pushDebug.registrationSucceeded ? 'successful' : 'not confirmed'} />
-              <DebugRow
-                label="Backend device count"
-                value={pushDebug.registeredDeviceCount === null ? 'unknown' : String(pushDebug.registeredDeviceCount)}
-              />
-              <DebugRow label="Last issue" value={pushDebug.lastError ?? 'none'} multiline />
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Backend Records</Text>
-            <NotificationsPanel
-              notifications={notifications}
-              unreadCount={notificationSummary?.unreadCount ?? 0}
-              onRefresh={() => void handleRefreshNotifications()}
-              onPressNotification={(notificationId) => {
-                void markNotificationRead(notificationId);
-              }}
-              title="Recent records"
-              emptyText="No recent backend notification records."
-              maxItems={4}
-            />
-          </View>
         </View>
       </ScrollView>
       <FloatingTabCta
@@ -163,23 +112,6 @@ export default function ProfileScreen() {
         onPress={() => void handleSendTestPush()}
         disabled={isSendingTestPush}
       />
-    </View>
-  );
-}
-
-function DebugRow({
-  label,
-  value,
-  multiline = false,
-}: {
-  label: string;
-  value: string;
-  multiline?: boolean;
-}) {
-  return (
-    <View style={[styles.debugRow, multiline && styles.debugRowMultiline]}>
-      <Text style={styles.debugLabel}>{label}</Text>
-      <Text style={[styles.debugValue, multiline && styles.debugValueMultiline]}>{value}</Text>
     </View>
   );
 }
@@ -337,36 +269,5 @@ const styles = StyleSheet.create({
   testPushButtonText: {
     color: '#fff',
     fontWeight: '700',
-  },
-  debugCard: {
-    backgroundColor: '#0C0C0C',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#222',
-    padding: 16,
-    gap: 12,
-  },
-  debugRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  debugRowMultiline: {
-    alignItems: 'flex-start',
-  },
-  debugLabel: {
-    color: '#7A7A7A',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  debugValue: {
-    flexShrink: 1,
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  debugValueMultiline: {
-    maxWidth: '65%',
   },
 });

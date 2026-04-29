@@ -1,7 +1,20 @@
 type NotificationPermissionsStatus = 'granted' | 'denied' | 'undetermined';
 
+const presentedNotifications: Array<{
+  request: {
+    identifier: string;
+    content: {
+      data?: Record<string, unknown>;
+    };
+  };
+}> = [];
+
 export const AndroidImportance = {
   HIGH: 4,
+};
+
+export const AndroidNotificationVisibility = {
+  PUBLIC: 1,
 };
 
 export function setNotificationHandler() {
@@ -30,6 +43,35 @@ export async function getExpoPushTokenAsync() {
   return {
     data: '',
   };
+}
+
+export async function scheduleNotificationAsync(input: {
+  content?: {
+    data?: Record<string, unknown>;
+  };
+}) {
+  const identifier = `web-notification-${presentedNotifications.length + 1}`;
+  presentedNotifications.push({
+    request: {
+      identifier,
+      content: {
+        data: input.content?.data,
+      },
+    },
+  });
+  return identifier;
+}
+
+export async function getPresentedNotificationsAsync() {
+  return presentedNotifications;
+}
+
+export async function dismissNotificationAsync(identifier: string) {
+  const index = presentedNotifications.findIndex((notification) => notification.request.identifier === identifier);
+
+  if (index >= 0) {
+    presentedNotifications.splice(index, 1);
+  }
 }
 
 export function addNotificationResponseReceivedListener() {

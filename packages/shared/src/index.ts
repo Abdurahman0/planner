@@ -1,3 +1,5 @@
+import type { RecurrenceType, TaskOccurrence } from './recurrence';
+
 export enum SubscriptionPlan {
   FREE = 'free',
   AI_BASIC = 'ai_basic',
@@ -90,6 +92,8 @@ export enum NotificationStatus {
   ARCHIVED = 'archived',
 }
 
+export * from './recurrence';
+
 export interface User {
   id: string;
   email: string;
@@ -135,9 +139,16 @@ export interface AvailabilitySlot {
   userId: string;
   type: AvailabilityType;
   dayOfWeek: number; // 0-6
+  startDate?: Date;
   startTime: string; // HH:mm
   endTime: string; // HH:mm
   label?: string;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: Date;
+  seriesId?: string;
+  occurrenceDate?: Date;
+  isRecurringInstance?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -161,6 +172,13 @@ export interface Task {
   targetUnit?: string;
   source: TaskSource;
   order: number;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: Date;
+  occurrences?: TaskOccurrence[];
+  seriesId?: string;
+  occurrenceDate?: Date;
+  isRecurringInstance?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -173,6 +191,7 @@ export interface TaskProgressLog {
   completionPercent?: number;
   completedValue?: number;
   note?: string;
+  occurrenceDate?: Date;
   loggedAt: Date;
 }
 

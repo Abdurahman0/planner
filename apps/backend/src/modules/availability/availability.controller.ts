@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -16,6 +17,7 @@ import type { AuthUser } from '../auth/types/auth-user';
 import { AvailabilityService } from './availability.service';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
+import { assertValidOccurrenceRange } from '../shared/recurrence-utils';
 
 @Controller('availability')
 @UseGuards(JwtAuthGuard)
@@ -28,8 +30,9 @@ export class AvailabilityController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser) {
-    return this.availabilityService.findAll(user.id);
+  findAll(@CurrentUser() user: AuthUser, @Query('from') from?: string, @Query('to') to?: string) {
+    assertValidOccurrenceRange(from, to);
+    return this.availabilityService.findAll(user.id, from, to);
   }
 
   @Patch(':id')

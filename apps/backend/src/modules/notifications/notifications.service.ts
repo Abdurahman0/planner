@@ -13,6 +13,12 @@ import {
   PrismaClient,
   TaskStatus,
 } from '@prisma/client';
+import {
+  buildDailyTaskNotificationBody,
+  expandTasksForRange,
+  getIncompleteUnscheduledTasksForDay,
+  startOfDay,
+} from '@packages/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 
@@ -21,6 +27,7 @@ const STREAK_MILESTONES = new Set([3, 7, 14, 30, 60, 100]);
 const EXPO_PUSH_API_URL = 'https://exp.host/--/api/v2/push/send';
 const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
 const EXPO_PUSH_MAX_MESSAGES_PER_REQUEST = 100;
+const DAILY_TASKS_RESEND_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const EMPTY_PUSH_RESULT = {
   attemptedCount: 0,
   deliveredCount: 0,
@@ -60,45 +67,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getSummary(userId: string) {
-    const [tasks, unreadCount] = await Promise.all([
-      this.prisma.task.findMany({
-        where: {
-          goal: {
-            userId,
-          },
-        },
-        select: {
-          id: true,
-          title: true,
-          goalId: true,
-          status: true,
-          plannedDate: true,
-          estimatedMinutes: true,
-          targetValue: true,
-          progressLogs: {
-            select: {
-              status: true,
-              loggedAt: true,
-            },
-          },
-          goal: {
-            select: {
-              title: true,
-              targetDate: true,
-              projectedDate: true,
-            },
-          },
-        },
-      }),
-      this.prisma.notification.count({
-        where: {
-          userId,
-          status: NotificationStatus.unread,
-        },
-      }),
-    ]);
-
-    return buildNotificationSummary(tasks, unreadCount);
+    const context = await this.getUserRetentionContext(userId, new Date(), this.prisma);
+    return buildNotificationSummary(context.expandedTasks, context.unreadCount);
   }
 
   async generateForUser(userId: string, now = new Date(), prismaClient: PrismaClientLike = this.prisma) {
@@ -106,13 +76,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const generated = [];
     let pushesAttempted = 0;
 
-    if (context.todayTotalTasks > 0) {
+    if (context.todayScheduledTasksCount > 0) {
       const result = await this.createNotification(prismaClient, {
         userId,
         type: NotificationType.reminder,
         dedupeKey: `${userId}:reminder:${context.dayKey}`,
         title: 'Time to continue your plan',
-        body: `You have ${context.todayTotalTasks} task${pluralize(context.todayTotalTasks)} scheduled for today.`,
+        body: `You have ${context.todayScheduledTasksCount} task${pluralize(context.todayScheduledTasksCount)} scheduled for today.`,
         metadata: {
           goalId: context.nextScheduledTask?.goalId,
           taskId: context.nextScheduledTask?.id,
@@ -126,6 +96,35 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       if (result.notification) {
         generated.push(result.notification);
       }
+    }
+
+    if (context.unscheduledDailyTasks.length > 0) {
+      const firstDailyTask = context.unscheduledDailyTasks[0];
+      const result = await this.createNotification(prismaClient, {
+        userId,
+        type: NotificationType.system,
+        dedupeKey: `${userId}:daily-tasks:${context.dayKey}`,
+        title: 'Daily tasks',
+        body: buildDailyTaskNotificationBody(context.unscheduledDailyTasks),
+        metadata: {
+          taskId: firstDailyTask.id,
+          notificationKind: 'daily_tasks',
+          occurrenceDate: (firstDailyTask.occurrenceDate ?? firstDailyTask.plannedDate).toISOString(),
+          plannerDate: context.dayKey,
+        },
+        resendAfterMs: DAILY_TASKS_RESEND_COOLDOWN_MS,
+      });
+
+      pushesAttempted += result.pushResults.attemptedCount;
+
+      if (result.notification) {
+        generated.push(result.notification);
+      }
+    } else {
+      await this.clearNotificationByDedupeKey(
+        prismaClient,
+        `${userId}:daily-tasks:${context.dayKey}`,
+      );
     }
 
     if (context.missedTasksCount > 0) {
@@ -182,7 +181,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    if (context.todayTotalTasks === 0) {
+    if (context.todayScheduledTasksCount === 0 && context.unscheduledDailyTasks.length === 0) {
       const result = await this.createNotification(prismaClient, {
         userId,
         type: NotificationType.system,
@@ -202,7 +201,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       generatedCount: generated.length,
       pushesAttempted,
       notifications: generated,
-      summary: buildNotificationSummary(context.tasks, context.unreadCount + generated.length),
+      summary: buildNotificationSummary(context.expandedTasks, context.unreadCount + generated.length),
     };
   }
 
@@ -368,12 +367,37 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         title: true,
         goalId: true,
         status: true,
+        type: true,
         plannedDate: true,
+        startTime: true,
+        endTime: true,
         estimatedMinutes: true,
         targetValue: true,
+        completedValue: true,
+        source: true,
+        order: true,
+        createdAt: true,
+        recurrenceType: true,
+        recurrenceDaysOfWeek: true,
+        recurrenceEndDate: true,
+        occurrences: {
+          select: {
+            id: true,
+            taskId: true,
+            occurrenceDate: true,
+            status: true,
+            completionPercent: true,
+            completedValue: true,
+            note: true,
+            completedDate: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
         progressLogs: {
           select: {
             status: true,
+            occurrenceDate: true,
             loggedAt: true,
           },
         },
@@ -386,6 +410,11 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         },
       },
     });
+    const today = startOfDay(now);
+    const rangeStart = new Date(today);
+    rangeStart.setDate(rangeStart.getDate() - 30);
+    const expandedTasks = expandTasksForRange(tasks, rangeStart, today) as unknown as RetentionTask[];
+    const unscheduledDailyTasks = getIncompleteUnscheduledTasksForDay(tasks, today) as unknown as RetentionTask[];
 
     const unreadCount = await prismaClient.notification.count({
       where: {
@@ -394,11 +423,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    const summary = buildNotificationSummary(tasks, unreadCount, now);
+    const summary = buildNotificationSummary(expandedTasks, unreadCount, now);
 
     return {
       tasks,
+      expandedTasks,
       unreadCount,
+      unscheduledDailyTasks,
       ...summary,
       dayKey: toDayKey(now),
     };
@@ -413,37 +444,80 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       body: string;
       dedupeKey: string;
       metadata?: Record<string, unknown>;
+      resendAfterMs?: number;
     },
   ) {
-    try {
-      const notification = await prismaClient.notification.create({
-        data: {
-          userId: input.userId,
-          type: input.type,
-          title: input.title,
-          body: input.body,
-          dedupeKey: input.dedupeKey,
-          metadata: toPrismaJson(input.metadata),
-          status: NotificationStatus.unread,
-        },
-      });
+    const existingNotification = input.dedupeKey
+      ? await prismaClient.notification.findUnique({
+          where: { dedupeKey: input.dedupeKey },
+        })
+      : null;
+    const metadata = toPrismaJson(input.metadata);
+    const contentChanged = Boolean(
+      existingNotification && (
+        existingNotification.title !== input.title ||
+        existingNotification.body !== input.body ||
+        JSON.stringify(existingNotification.metadata ?? null) !== JSON.stringify(metadata ?? null)
+      ),
+    );
+    const resendAfterMs = input.resendAfterMs ?? 0;
+    const shouldResendUnchanged = Boolean(
+      existingNotification &&
+      resendAfterMs > 0 &&
+      Date.now() - existingNotification.updatedAt.getTime() >= resendAfterMs,
+    );
+    const shouldUpdateExisting = Boolean(
+      existingNotification && (contentChanged || shouldResendUnchanged),
+    );
+    const shouldSendPush = !existingNotification || contentChanged || shouldResendUnchanged;
 
-      const pushResults = await this.sendPushNotification(input.userId, notification);
+    const notification = existingNotification
+      ? shouldUpdateExisting
+        ? await prismaClient.notification.update({
+            where: { id: existingNotification.id },
+            data: {
+              title: input.title,
+              body: input.body,
+              metadata,
+              status: NotificationStatus.unread,
+              readAt: null,
+            },
+          })
+        : existingNotification
+      : await prismaClient.notification.create({
+          data: {
+            userId: input.userId,
+            type: input.type,
+            title: input.title,
+            body: input.body,
+            dedupeKey: input.dedupeKey,
+            metadata,
+            status: NotificationStatus.unread,
+          },
+        });
 
-      return {
-        notification,
-        pushResults,
-      };
-    } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        return {
-          notification: null,
-          pushResults: EMPTY_PUSH_RESULT,
-        };
-      }
+    return {
+      notification,
+      pushResults: shouldSendPush
+        ? await this.sendPushNotification(input.userId, notification)
+        : EMPTY_PUSH_RESULT,
+    };
+  }
 
-      throw error;
-    }
+  private async clearNotificationByDedupeKey(
+    prismaClient: PrismaClientLike,
+    dedupeKey: string,
+  ) {
+    await prismaClient.notification.updateMany({
+      where: {
+        dedupeKey,
+        status: NotificationStatus.unread,
+      },
+      data: {
+        status: NotificationStatus.read,
+        readAt: new Date(),
+      },
+    });
   }
 
   private async sendPushNotification(userId: string, notification: {
@@ -586,10 +660,15 @@ type RetentionTask = {
   goalId: string;
   status: TaskStatus;
   plannedDate: Date;
+  occurrenceDate?: Date;
+  startTime?: string | null;
+  endTime?: string | null;
   estimatedMinutes: number | null;
   targetValue: number | null;
+  completedValue?: number | null;
   progressLogs: Array<{
     status: TaskStatus;
+    occurrenceDate?: Date | null;
     loggedAt: Date;
   }>;
   goal: {
@@ -605,18 +684,31 @@ function buildNotificationSummary(
   now = new Date(),
 ) {
   const todayKey = toDayKey(now);
-  const todayTasks = tasks.filter((task) => toDayKey(task.plannedDate) === todayKey);
+  const todayTasks = tasks.filter((task) => toDayKey(task.occurrenceDate ?? task.plannedDate) === todayKey);
+  const todayScheduledTasks = todayTasks.filter((task) => Boolean(task.startTime && task.endTime));
   const todayCompletedTasks = todayTasks.filter((task) => task.status === TaskStatus.done).length;
   const todayTotalTasks = todayTasks.length;
+  const todayScheduledTasksCount = todayScheduledTasks.length;
   const missedTasksCount = tasks.filter(
-    (task) => toDayKey(task.plannedDate) < todayKey && !isTaskCompleted(task.status),
+    (task) => toDayKey(task.occurrenceDate ?? task.plannedDate) < todayKey && !isTaskCompleted(task.status),
   ).length;
-  const nextScheduledTask = todayTasks
+  const nextScheduledTask = todayScheduledTasks
     .filter((task) => !isTaskCompleted(task.status))
-    .sort((left, right) => left.plannedDate.getTime() - right.plannedDate.getTime())[0];
+    .sort((left, right) => {
+      if (left.startTime && right.startTime) {
+        const timeDiff = left.startTime.localeCompare(right.startTime);
+
+        if (timeDiff !== 0) {
+          return timeDiff;
+        }
+      }
+
+      return (left.occurrenceDate ?? left.plannedDate).getTime()
+        - (right.occurrenceDate ?? right.plannedDate).getTime();
+    })[0];
   const firstMissedTask = tasks
-    .filter((task) => toDayKey(task.plannedDate) < todayKey && !isTaskCompleted(task.status))
-    .sort((left, right) => right.plannedDate.getTime() - left.plannedDate.getTime())[0];
+    .filter((task) => toDayKey(task.occurrenceDate ?? task.plannedDate) < todayKey && !isTaskCompleted(task.status))
+    .sort((left, right) => (right.occurrenceDate ?? right.plannedDate).getTime() - (left.occurrenceDate ?? left.plannedDate).getTime())[0];
   const goalStates = new Map<string, { targetDate: Date; projectedDate: Date; title: string }>();
 
   for (const task of tasks) {
@@ -648,12 +740,12 @@ function buildNotificationSummary(
   for (const task of tasks) {
     for (const log of task.progressLogs) {
       if (log.status === TaskStatus.done) {
-        doneDaySet.add(toDayKey(log.loggedAt));
+        doneDaySet.add(toDayKey(log.occurrenceDate ?? log.loggedAt));
       }
     }
 
     if (task.status === TaskStatus.done && task.progressLogs.length === 0) {
-      doneDaySet.add(toDayKey(task.plannedDate));
+      doneDaySet.add(toDayKey(task.occurrenceDate ?? task.plannedDate));
     }
   }
 
@@ -665,6 +757,7 @@ function buildNotificationSummary(
     todayCompletionRate: todayTotalTasks > 0 ? todayCompletedTasks / todayTotalTasks : 0,
     todayCompletedTasks,
     todayTotalTasks,
+    todayScheduledTasksCount,
     missedTasksCount,
     behindGoalsCount,
     aheadGoalsCount,
@@ -736,10 +829,6 @@ function pluralize(value: number) {
 
 function isExpoPushToken(token: string) {
   return token.startsWith('ExpoPushToken[') || token.startsWith('ExponentPushToken[');
-}
-
-function isUniqueConstraintError(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 function toPrismaJson(value: unknown): Prisma.InputJsonValue | undefined {

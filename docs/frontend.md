@@ -31,6 +31,8 @@ Connected:
 - authenticated Expo push token registration
 - Expo push token registration
 - Android push tap routing
+- recurring task and recurring routine-block mobile forms
+- local daily-task notification mirroring for authenticated planner state
 
 Not connected yet:
 
@@ -52,7 +54,6 @@ Not connected yet:
 
 Implemented:
 
-- in-app notifications list in Profile
 - backend-driven push notifications for Android system delivery
 - Android system push notifications are the primary notification experience
 - Expo notification permission request only after authenticated bootstrap/login
@@ -98,36 +99,35 @@ Current push flow:
 - it registers that token with `POST /notifications/devices`
 - if device registration fails, it retries once safely
 - authenticated push QA can use backend `POST /notifications/test-push` to confirm closed-app delivery on a real APK
-- Profile exposes a temporary `Push Debug` section with safe status only:
-  - permission status
-  - project ID present yes/no
-  - token created yes/no
-  - backend registration confirmed yes/no
-  - backend device count if a test push was attempted
-  - last safe error summary
 - in development only, the app logs safe push debug signals:
   - permission status
   - whether project ID was found
   - whether a token was created
   - whether backend registration succeeded
 
-Current Android token-creation failure meaning:
+Daily unscheduled task notification MVP:
 
-- if Push Debug shows:
-  - `Permission = granted`
-  - `Project ID = present`
-  - `Token created = no`
-  - and the last issue mentions `Default FirebaseApp is not initialized`
-- then the APK is missing native Firebase client setup
-- this is not a backend JWT/device-registration problem
-- the Android build must include a valid `google-services.json` for package `com.aiplanner.mobile`
-- EAS must also have valid FCM V1 credentials uploaded for the Expo project
+- the app mirrors incomplete unscheduled tasks for today into a local Android notification while the user is authenticated and synced
+- the body shows up to 3 task titles
+- if more tasks remain, the body ends with `+N more tasks`
+- ordering is oldest created task first
+- when all incomplete unscheduled tasks for today are done, the local reminder is cleared
+- if the notification is swiped away, it can appear again on a later app sync or backend sweep while incomplete daily tasks remain
+- identical daily-task reminders are not pushed again on every sweep; unchanged content is re-sent only after a cooldown or when the task list changes
+- this is not a verified true Android ongoing/non-dismissible notification; it is the safest Expo-compatible MVP
+
+Current production-facing notification UX:
+
+- Profile keeps the authenticated `Send test notification` action for QA
+- temporary push-debug panels have been removed from the UI
+- Profile no longer renders raw backend notification records
+- the in-app Profile list is not the primary notification experience
 
 Foreground vs background behavior:
 
 - foreground: Expo handler requests banner/list presentation, and the app also shows an in-app fallback banner
 - background/closed app: Android system notification depends on backend-generated Expo push delivery, not the in-app list
-- Profile still exposes recent backend notification records, but that list is not the primary user notification surface
+- Profile keeps the authenticated test-push action, but it is not the primary user notification surface
 
 ## Planner UX
 
@@ -149,10 +149,26 @@ Implemented:
 - tap empty hour to quick-add task
 - `Plan Day` floating action
 - `Plan Day` floating action anchored from the calendar screen root, just above the bottom tab bar
-- `Plan Day` uses `insets.bottom` with a small offset as its bottom anchor
+- `Plan Day` uses `Math.max(insets.bottom, 8)` as its bottom anchor
 - `PlanDaySheet`
 - add/edit routine blocks
 - quick task scheduling modal
+- recurring tasks:
+  - `none`
+  - `daily`
+  - `weekly`
+  - `monthly`
+  - `yearly`
+- recurring routine blocks:
+  - `none`
+  - `daily`
+  - `weekly`
+  - `monthly`
+  - `yearly`
+- weekly recurrence day picker
+- optional recurrence end date
+- recurring occurrences rendered in day/week/month views
+- recurring items show repeat badges in the planner UI
 - main tab screens now use a shared floating CTA system:
   - Dashboard: `Quick plan`
   - Goals: `New goal`
@@ -177,6 +193,7 @@ Implemented:
 - task counts
 - goal indicators
 - completed / failed markers
+- recurring occurrences are expanded before month counting, so daily/weekly/monthly/yearly series show up on their real calendar days
 
 ## Task Creation UX
 
@@ -189,6 +206,7 @@ Current behavior:
   - `startTime`
   - `endTime = startTime + 1 hour`
 - simplified modal keeps advanced options hidden until needed
+- recurrence controls live under `More options`
 - task and schedule modals are keyboard-safe:
   - scroll remains available when the Android keyboard is open
   - description and footer actions stay reachable
@@ -226,7 +244,7 @@ Implemented:
   - tab scene padding
   - planner scroll content padding
   - floating action positioning
-- floating CTA buttons on main tabs use `insets.bottom` plus a minimal offset instead of tab-bar-height anchoring
+- floating CTA buttons on main tabs use `Math.max(insets.bottom, 8)` instead of tab-bar-height anchoring or larger artificial offsets
 
 Edge-to-edge note:
 
@@ -291,16 +309,19 @@ Production note:
 
 Troubleshooting `No push-ready Android device is registered yet`:
 
-- check Profile `Push Debug`
-- if `Permission = denied`, allow notifications in Android settings or app prompt
-- if `Project ID = missing`, rebuild the APK from the linked EAS project
-- if `Token created = no`, Expo token generation failed on-device
-- if the last issue says `Default FirebaseApp is not initialized`, rebuild with a valid `google-services.json` and EAS FCM credentials
-- if `Backend registration = not confirmed`, inspect backend route deployment or JWT-authenticated device registration
-- if `Backend device count = 0`, the backend still has no usable Expo token for the authenticated user
+- grant notification permission on the device
+- rebuild the APK from the linked EAS project if project configuration is stale
+- if token creation fails with `Default FirebaseApp is not initialized`, rebuild with a valid `google-services.json` and EAS FCM credentials
+- if backend registration fails, inspect `POST /notifications/devices` deployment and JWT-authenticated routing
+- if daily-task reminder behavior is missing:
+  - confirm the task has `plannedDate = today`
+  - confirm it has no `startTime` / `endTime`
+  - confirm it is still incomplete
+  - confirm the app is running on a physical Android device with notification permission granted
 
 ## Current Limitations
 
+- recurring series editing currently updates the whole series; single-occurrence edit/delete is not implemented
 - no drag-and-drop rescheduling
 - no drag resize by duration
 - no frontend AI generation/replan UI
@@ -310,4 +331,5 @@ Troubleshooting `No push-ready Android device is registered yet`:
 - Android notification styling is still constrained by OS defaults
 - Android edge-to-edge behavior still requires real-device QA across OEM skins
 - push notification reliability still requires real-device APK validation
+- true non-dismissible Android ongoing notifications are not claimed in the current Expo/EAS setup
 - real-device QA is still required

@@ -58,14 +58,6 @@ interface AppState {
   notificationSummary: NotificationSummary | null;
   availability: AvailabilitySlot[];
   notificationPermissionNotice: string | null;
-  pushDebug: {
-    permissionStatus: 'unknown' | 'granted' | 'denied' | 'unavailable';
-    projectIdPresent: boolean;
-    tokenCreated: boolean;
-    registrationSucceeded: boolean;
-    registeredDeviceCount: number | null;
-    lastError: string | null;
-  };
   isLoading: boolean;
   isInitialized: boolean;
   clearNotificationPermissionNotice: () => void;
@@ -100,14 +92,6 @@ export const useStore = create<AppState>((set, get) => ({
   notificationSummary: null,
   availability: [],
   notificationPermissionNotice: null,
-  pushDebug: {
-    permissionStatus: 'unknown',
-    projectIdPresent: false,
-    tokenCreated: false,
-    registrationSucceeded: false,
-    registeredDeviceCount: null,
-    lastError: null,
-  },
   isLoading: false,
   isInitialized: false,
 
@@ -135,14 +119,6 @@ export const useStore = create<AppState>((set, get) => ({
           notificationSummary: null,
           availability: [],
           notificationPermissionNotice: null,
-          pushDebug: {
-            permissionStatus: 'unknown',
-            projectIdPresent: false,
-            tokenCreated: false,
-            registrationSucceeded: false,
-            registeredDeviceCount: null,
-            lastError: null,
-          },
           isInitialized: true,
           isLoading: false,
         });
@@ -165,14 +141,6 @@ export const useStore = create<AppState>((set, get) => ({
         notificationSummary: null,
         availability: [],
         notificationPermissionNotice: null,
-        pushDebug: {
-          permissionStatus: 'unknown',
-          projectIdPresent: false,
-          tokenCreated: false,
-          registrationSucceeded: false,
-          registeredDeviceCount: null,
-          lastError: null,
-        },
         isInitialized: true,
         isLoading: false,
       });
@@ -228,14 +196,6 @@ export const useStore = create<AppState>((set, get) => ({
       notificationSummary: null,
       availability: [],
       notificationPermissionNotice: null,
-      pushDebug: {
-        permissionStatus: 'unknown',
-        projectIdPresent: false,
-        tokenCreated: false,
-        registrationSucceeded: false,
-        registeredDeviceCount: null,
-        lastError: null,
-      },
       isLoading: false,
       isInitialized: true,
     });
@@ -334,21 +294,15 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateTaskStatus: async (taskId: string, input: UpdateTaskStatusInput) => {
     const token = requireToken(get);
-    const task = get().tasks.find((item) => item.id === taskId);
-
-    if (!task) {
-      throw new Error('Task not found');
-    }
+    const task = get().tasks.find((item) => item.id === taskId || item.seriesId === taskId);
 
     try {
       const result = await updateTaskStatusRequest(token, taskId, input);
-
-      set((state) => ({
-        tasks: upsertById(state.tasks, result.task),
-      }));
+      const goalId = task?.goalId ?? result.task.goalId;
 
       await Promise.all([
-        get().fetchGoal(task.goalId),
+        get().fetchTasks(goalId),
+        get().fetchGoal(goalId),
         get().fetchNotifications(),
         get().fetchNotificationSummary(),
       ]);
@@ -491,16 +445,6 @@ export const useStore = create<AppState>((set, get) => ({
 
       const result = await sendTestPushRequest(token);
 
-      set((state) => ({
-        pushDebug: {
-          ...state.pushDebug,
-          registeredDeviceCount: result.deviceCount,
-          lastError: result.deviceCount === 0
-            ? 'No backend-registered Expo push device is available for this account.'
-            : null,
-        },
-      }));
-
       if (result.deviceCount === 0) {
         throw new Error('No push-ready Android device is registered yet. Grant permission and try again.');
       }
@@ -547,16 +491,6 @@ async function syncPushRegistration(
 ) {
   try {
     const result = await registerForPushNotificationsAsync();
-    set((state) => ({
-      pushDebug: {
-        ...state.pushDebug,
-        permissionStatus: result.permissionStatus,
-        projectIdPresent: result.projectIdPresent,
-        tokenCreated: result.tokenCreated,
-        registrationSucceeded: false,
-        lastError: result.registrationError ?? null,
-      },
-    }));
 
     if (result.permissionStatus === 'denied') {
       set({ notificationPermissionNotice: NOTIFICATION_PERMISSION_MESSAGE });
@@ -583,19 +517,11 @@ async function syncPushRegistration(
       };
     }
 
-    const registrationResponse = await attemptDeviceRegistration(token, result.registration);
+    await attemptDeviceRegistration(token, result.registration);
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
-      console.log('[push] Device registration succeeded', registrationResponse);
+      console.log('[push] Device registration succeeded');
     }
-    set((state) => ({
-      notificationPermissionNotice: null,
-      pushDebug: {
-        ...state.pushDebug,
-        registrationSucceeded: true,
-        registeredDeviceCount: null,
-        lastError: null,
-      },
-    }));
+    set({ notificationPermissionNotice: null });
     return {
       permissionStatus: 'granted' as const,
       registrationSucceeded: true,
@@ -607,13 +533,6 @@ async function syncPushRegistration(
       console.log('[push] Device registration failed');
     }
     const safeError = error instanceof Error ? error.message : 'Push device registration failed.';
-    set((state) => ({
-      pushDebug: {
-        ...state.pushDebug,
-        registrationSucceeded: false,
-        lastError: safeError,
-      },
-    }));
     return {
       permissionStatus: 'granted' as const,
       registrationSucceeded: false,
@@ -662,14 +581,6 @@ async function handleApiError(
       notificationSummary: null,
       availability: [],
       notificationPermissionNotice: null,
-      pushDebug: {
-        permissionStatus: 'unknown',
-        projectIdPresent: false,
-        tokenCreated: false,
-        registrationSucceeded: false,
-        registeredDeviceCount: null,
-        lastError: null,
-      },
       isLoading: false,
       isInitialized: true,
     });

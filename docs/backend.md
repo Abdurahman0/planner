@@ -114,17 +114,35 @@ Implemented:
 - tasks are goal-owned
 - task status changes write `TaskProgressLog`
 - projected deadline recalculation happens from real task progress
+- recurring task series support:
+  - `none`
+  - `daily`
+  - `weekly`
+  - `monthly`
+  - `yearly`
+- recurring task occurrence overrides stored in `TaskOccurrence`
+- monthly/yearly recurrence expansion uses clamped calendar dates so end-of-month and leap-year series do not drift into the wrong month
 - scheduled tasks support:
   - `plannedDate`
   - `startTime`
   - `endTime`
 - unscheduled tasks remain valid
+- unscheduled daily tasks are tasks with:
+  - `plannedDate = today`
+  - `startTime = null`
+  - `endTime = null`
+  - `status != done`
 
 ## Availability Rules
 
 Implemented:
 
-- weekly recurring schedule blocks
+- recurring schedule blocks:
+  - `none`
+  - `daily`
+  - `weekly`
+  - `monthly`
+  - `yearly`
 - supported types:
   - `sleep`
   - `eating`
@@ -136,6 +154,7 @@ Implemented:
 - time format validation
 - `endTime > startTime`
 - overlapping blocks rejected
+- recurrence range validation and generation limits
 
 Deployment note:
 
@@ -182,11 +201,13 @@ Implemented:
 - device registration
 - device registration happens through `POST /notifications/devices` after authenticated mobile bootstrap
 - reminder generation
+- recurring-task-aware reminder generation
 - missed-task alerts
 - progress feedback
 - streak summary/rewards
 - Expo push delivery for Android system notifications
 - daily planning reminder generation
+- unscheduled daily task reminder generation
 - `POST /notifications/refresh` is available for authenticated manual QA
 - `POST /notifications/test-push` sends a direct test push to the authenticated user's registered Expo devices
 - `POST /notifications/run-sweep` exists for internal scheduler/cron use and requires `x-internal-cron-secret`
@@ -229,6 +250,12 @@ Current supported push content:
   - `3-day streak`, `7-day streak`, and other configured milestones
 - daily planning reminder:
   - `Plan your day`
+- daily tasks reminder:
+  - `Daily tasks`
+  - body lists up to 3 incomplete unscheduled tasks for today
+  - oldest created tasks appear first
+  - if more remain, the body ends with `+N more tasks`
+  - unchanged daily-task content is deduplicated and not re-pushed on every sweep
 
 Expo push payload shape:
 
@@ -258,6 +285,9 @@ Security properties:
 - backend does not expose or depend on Firebase service-account secrets to the mobile app
 - push payloads contain routing metadata only
 - no secrets or private account data are sent in Expo push payloads
+- lock-screen-visible daily task notifications intentionally keep content generic:
+  - task titles only
+  - no private goal notes or auth data
 - notification access remains user-scoped
 - push delivery parameters are backend-controlled:
   - `channelId: planner-reminders`
@@ -284,6 +314,11 @@ Background / closed-app delivery:
   - every 10 minutes if resource-sensitive
 - if the Render instance can sleep, cron-triggered delivery may still be delayed by wake-up time
 - reliable Telegram-style closed-app notifications need an always-on backend or equivalent paid uptime
+- true Android non-dismissible ongoing notifications are not implemented in this Expo/EAS MVP
+- current MVP behavior is:
+  - backend sweep can re-send the daily-task reminder while incomplete unscheduled tasks remain
+  - identical daily-task reminders are throttled by dedupe/cooldown instead of re-sending every sweep
+  - the app can mirror/update a local daily-task reminder while it is open and synced
 
 ## Deployment Notes
 
@@ -318,6 +353,7 @@ This documents the current deployment target/example. It does not mean launch re
 
 ## Known Backend Limitations
 
+- recurring series single-occurrence edit/delete endpoints are not implemented yet
 - no admin feature set
 - no task delete endpoint
 - planner conflict handling is still basic

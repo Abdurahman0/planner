@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AvailabilitySlot, Task } from '@packages/shared';
-import { Plus } from 'lucide-react-native';
+import { Plus, Repeat2 } from 'lucide-react-native';
 import { TaskItem } from './TaskItem';
 import {
   getAvailabilityColor,
   getAvailabilityForDate,
   getAvailabilityLabel,
+  getAvailabilityRecurrenceLabel,
   getScheduledTasks,
+  getTaskRecurrenceLabel,
   getTaskStatusColor,
   getTasksForDate,
   getTimelineHeight,
@@ -167,15 +169,23 @@ export const DayView: React.FC<DayViewProps> = ({
                     onPress={() => onEditScheduleBlock?.(slot)}
                   >
                     <View style={styles.availabilityHeader}>
-                      <Text style={[styles.availabilityTitle, { color }]} numberOfLines={1}>
-                        {getAvailabilityLabel(slot)}
-                      </Text>
+                    <Text style={[styles.availabilityTitle, { color }]} numberOfLines={1}>
+                      {getAvailabilityLabel(slot)}
+                    </Text>
+                    <View style={styles.availabilityPills}>
+                      {slot.recurrenceType && slot.recurrenceType !== 'none' ? (
+                        <View style={styles.repeatPill}>
+                          <Repeat2 size={10} color="#E9D5FF" />
+                          <Text style={styles.repeatPillText}>{getAvailabilityRecurrenceLabel(slot)}</Text>
+                        </View>
+                      ) : null}
                       <View style={[styles.availabilityTypePill, { backgroundColor: `${color}22`, borderColor: `${color}55` }]}>
                         <Text style={[styles.availabilityTypeText, { color }]}>{slot.type.replace('_', ' ')}</Text>
                       </View>
                     </View>
-                    <Text style={styles.availabilityTime}>
-                      {slot.startTime} - {slot.endTime}
+                  </View>
+                  <Text style={styles.availabilityTime}>
+                    {slot.startTime} - {slot.endTime}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -209,6 +219,12 @@ export const DayView: React.FC<DayViewProps> = ({
                   <Text style={styles.scheduledTaskTitle} numberOfLines={2}>
                     {task.title}
                   </Text>
+                  {task.recurrenceType && task.recurrenceType !== 'none' ? (
+                    <View style={styles.taskRepeatRow}>
+                      <Repeat2 size={12} color="#C084FC" />
+                      <Text style={styles.taskRepeatText}>{getTaskRecurrenceLabel(task)}</Text>
+                    </View>
+                  ) : null}
                   {task.description ? (
                     <Text style={styles.scheduledTaskDescription} numberOfLines={2}>
                       {task.description}
@@ -410,6 +426,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     flex: 1,
   },
+  availabilityPills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   availabilityTypePill: {
     borderRadius: 999,
     borderWidth: 1,
@@ -471,11 +492,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'capitalize',
   },
+  repeatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#1A1026',
+    borderWidth: 1,
+    borderColor: '#A855F744',
+  },
+  repeatPillText: {
+    color: '#E9D5FF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   scheduledTaskTitle: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '700',
     marginTop: 6,
+  },
+  taskRepeatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  taskRepeatText: {
+    color: '#C084FC',
+    fontSize: 11,
+    fontWeight: '600',
   },
   scheduledTaskDescription: {
     color: '#A3A3A3',

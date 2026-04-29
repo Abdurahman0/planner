@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Goal, Task, TaskSource, TaskStatus } from '@packages/shared';
-import { isSameDay } from '../lib/planner';
+import { getTasksForDate, isSameDay } from '../lib/planner';
 
 interface MonthViewProps {
   selectedDate: Date;
@@ -42,11 +42,12 @@ export const MonthView: React.FC<MonthViewProps> = ({ selectedDate, tasks, goals
             return <View key={`empty-${index}`} style={styles.dayCell} />;
           }
 
-          const dayTasks = tasks.filter((task) => isSameDay(task.plannedDate, date));
+          const dayTasks = getTasksForDate(tasks, date);
           const completedCount = dayTasks.filter((task) => task.status === TaskStatus.DONE).length;
           const failedCount = dayTasks.filter((task) => task.status === TaskStatus.FAILED).length;
           const aiTaskCount = dayTasks.filter((task) => task.source === TaskSource.AI).length;
           const manualTaskCount = dayTasks.length - aiTaskCount;
+          const recurringTaskCount = dayTasks.filter((task) => task.recurrenceType && task.recurrenceType !== 'none').length;
           const goalIds = new Set(dayTasks.map((task) => task.goalId));
           const goalCount = goals.filter((goal) => goalIds.has(goal.id)).length;
           const isToday = isSameDay(date, new Date());
@@ -71,6 +72,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ selectedDate, tasks, goals
                   <View style={styles.indicatorRow}>
                     {aiTaskCount > 0 ? <View style={[styles.indicatorDot, styles.aiDot]} /> : null}
                     {manualTaskCount > 0 ? <View style={[styles.indicatorDot, styles.manualDot]} /> : null}
+                    {recurringTaskCount > 0 ? <View style={[styles.indicatorDot, styles.recurringDot]} /> : null}
                     {completedCount > 0 ? <View style={[styles.indicatorDot, styles.doneDot]} /> : null}
                     {failedCount > 0 ? <View style={[styles.indicatorDot, styles.failedDot]} /> : null}
                   </View>
@@ -161,6 +163,9 @@ const styles = StyleSheet.create({
   },
   manualDot: {
     backgroundColor: '#10B981',
+  },
+  recurringDot: {
+    backgroundColor: '#C084FC',
   },
   doneDot: {
     backgroundColor: '#22C55E',

@@ -27,7 +27,7 @@ export function FloatingTabCta({
       onPress={onPress}
       style={[
         styles.button,
-        { bottom: insets.bottom + 4 },
+        { bottom: Math.max(insets.bottom, 8) },
         disabled && styles.buttonDisabled,
       ]}
     >

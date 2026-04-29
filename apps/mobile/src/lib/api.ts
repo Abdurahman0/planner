@@ -10,8 +10,10 @@ import type {
   GoalPriority,
   GoalStatus,
   GoalType,
+  RecurrenceType,
   SubscriptionPlan,
   Task,
+  TaskOccurrence,
   TaskProgressLog,
   TaskStatus,
   TaskType,
@@ -42,6 +44,9 @@ export interface CreateTaskInput {
   estimatedMinutes?: number;
   targetValue?: number;
   targetUnit?: string;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: Date;
 }
 
 export interface UpdateTaskInput {
@@ -54,6 +59,9 @@ export interface UpdateTaskInput {
   estimatedMinutes?: number | null;
   targetValue?: number | null;
   targetUnit?: string | null;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: Date | null;
 }
 
 export interface UpdateTaskStatusInput {
@@ -61,6 +69,7 @@ export interface UpdateTaskStatusInput {
   completionPercent?: number;
   completedValue?: number;
   note?: string;
+  occurrenceDate?: Date;
 }
 
 export interface TaskStatusUpdateResult {
@@ -76,18 +85,26 @@ export interface RegisterDeviceInput {
 
 export interface CreateAvailabilityInput {
   dayOfWeek: number;
+  startDate?: Date;
   startTime: string;
   endTime: string;
   type: AvailabilityType;
   label?: string;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: Date;
 }
 
 export interface UpdateAvailabilityInput {
   dayOfWeek?: number;
+  startDate?: Date | null;
   startTime?: string;
   endTime?: string;
   type?: AvailabilityType;
   label?: string | null;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: Date | null;
 }
 
 export interface TestPushResult {
@@ -137,8 +154,28 @@ interface ApiTask {
   targetUnit?: string | null;
   source: Task['source'];
   order: number;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: string | null;
+  occurrences?: ApiTaskOccurrence[];
+  seriesId?: string;
+  occurrenceDate?: string;
+  isRecurringInstance?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ApiTaskOccurrence {
+  id: string;
+  taskId: string;
+  occurrenceDate: string;
+  status: TaskStatus;
+  completionPercent?: number | null;
+  completedValue?: number | null;
+  note?: string | null;
+  completedDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ApiProgressLog {
@@ -149,6 +186,7 @@ interface ApiProgressLog {
   completionPercent?: number | null;
   completedValue?: number | null;
   note?: string | null;
+  occurrenceDate?: string | null;
   loggedAt: string;
 }
 
@@ -156,10 +194,17 @@ interface ApiAvailabilitySlot {
   id: string;
   userId: string;
   dayOfWeek: number;
+  startDate?: string;
   startTime: string;
   endTime: string;
   type: AvailabilityType;
   label?: string | null;
+  recurrenceType?: RecurrenceType;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEndDate?: string | null;
+  seriesId?: string;
+  occurrenceDate?: string;
+  isRecurringInstance?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -205,8 +250,6 @@ interface RequestOptions extends RequestInit {
 const API_BASE_URL = resolveBaseUrl();
 const REQUEST_TIMEOUT_MS = 10_000;
 
-console.log('API_BASE_URL:', API_BASE_URL);
-
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -220,9 +263,7 @@ export class ApiError extends Error {
 export class UnauthorizedError extends ApiError {}
 
 export async function testConnection() {
-  const response = await request<{ status: string }>('/health');
-  console.log('Health response:', response);
-  return response;
+  return request<{ status: string }>('/health');
 }
 
 export async function loginRequest(email: string, password: string) {
@@ -304,6 +345,9 @@ export async function createTaskRequest(token: string, input: CreateTaskInput) {
       estimatedMinutes: input.estimatedMinutes,
       targetValue: input.targetValue,
       targetUnit: input.targetUnit,
+      recurrenceType: input.recurrenceType,
+      recurrenceDaysOfWeek: input.recurrenceDaysOfWeek,
+      recurrenceEndDate: input.recurrenceEndDate?.toISOString(),
     }),
   });
 
@@ -317,6 +361,7 @@ export async function updateTaskRequest(token: string, taskId: string, input: Up
     body: JSON.stringify({
       ...input,
       plannedDate: input.plannedDate?.toISOString(),
+      recurrenceEndDate: input.recurrenceEndDate?.toISOString() ?? (input.recurrenceEndDate === null ? null : undefined),
     }),
   });
 
@@ -331,7 +376,10 @@ export async function updateTaskStatusRequest(token: string, taskId: string, inp
   }>(`/tasks/${taskId}/status`, {
     method: 'PATCH',
     token,
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      occurrenceDate: input.occurrenceDate?.toISOString(),
+    }),
   });
 
   return {
@@ -355,7 +403,11 @@ export async function createAvailabilityRequest(token: string, input: CreateAvai
   const response = await request<ApiAvailabilitySlot>('/availability', {
     method: 'POST',
     token,
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      startDate: input.startDate?.toISOString(),
+      recurrenceEndDate: input.recurrenceEndDate?.toISOString(),
+    }),
   });
 
   return normalizeAvailabilitySlot(response);
@@ -365,7 +417,11 @@ export async function updateAvailabilityRequest(token: string, slotId: string, i
   const response = await request<ApiAvailabilitySlot>(`/availability/${slotId}`, {
     method: 'PATCH',
     token,
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      ...input,
+      startDate: input.startDate?.toISOString() ?? (input.startDate === null ? null : undefined),
+      recurrenceEndDate: input.recurrenceEndDate?.toISOString() ?? (input.recurrenceEndDate === null ? null : undefined),
+    }),
   });
 
   return normalizeAvailabilitySlot(response);
@@ -435,15 +491,12 @@ async function request<T>(path: string, options: RequestOptions = {}) {
   let response: Response;
 
   try {
-    console.log('Request URL:', url);
     response = await fetch(url, {
       ...options,
       headers,
       signal: controller.signal,
     });
-    console.log('Response status:', response.status);
   } catch (error) {
-    console.log('NETWORK ERROR:', error);
     throw new ApiError(0, 'Cannot reach server. Check connection.', error);
   } finally {
     clearTimeout(timeoutId);
@@ -494,8 +547,28 @@ function normalizeTask(task: ApiTask): Task {
     targetValue: task.targetValue ?? undefined,
     completedValue: task.completedValue ?? undefined,
     targetUnit: task.targetUnit ?? undefined,
+    recurrenceType: task.recurrenceType ?? undefined,
+    recurrenceDaysOfWeek: task.recurrenceDaysOfWeek ?? undefined,
+    recurrenceEndDate: task.recurrenceEndDate ? new Date(task.recurrenceEndDate) : undefined,
+    occurrences: task.occurrences?.map(normalizeTaskOccurrence),
+    seriesId: task.seriesId ?? undefined,
+    occurrenceDate: task.occurrenceDate ? new Date(task.occurrenceDate) : undefined,
+    isRecurringInstance: task.isRecurringInstance ?? undefined,
     createdAt: new Date(task.createdAt),
     updatedAt: new Date(task.updatedAt),
+  };
+}
+
+function normalizeTaskOccurrence(occurrence: ApiTaskOccurrence): TaskOccurrence {
+  return {
+    ...occurrence,
+    completionPercent: occurrence.completionPercent ?? undefined,
+    completedValue: occurrence.completedValue ?? undefined,
+    note: occurrence.note ?? undefined,
+    occurrenceDate: new Date(occurrence.occurrenceDate),
+    completedDate: occurrence.completedDate ? new Date(occurrence.completedDate) : undefined,
+    createdAt: occurrence.createdAt ? new Date(occurrence.createdAt) : undefined,
+    updatedAt: occurrence.updatedAt ? new Date(occurrence.updatedAt) : undefined,
   };
 }
 
@@ -505,6 +578,7 @@ function normalizeProgressLog(progressLog: ApiProgressLog): TaskProgressLog {
     completionPercent: progressLog.completionPercent ?? undefined,
     completedValue: progressLog.completedValue ?? undefined,
     note: progressLog.note ?? undefined,
+    occurrenceDate: progressLog.occurrenceDate ? new Date(progressLog.occurrenceDate) : undefined,
     loggedAt: new Date(progressLog.loggedAt),
   };
 }
@@ -523,6 +597,13 @@ function normalizeAvailabilitySlot(slot: ApiAvailabilitySlot): AvailabilitySlot 
   return {
     ...slot,
     label: slot.label ?? undefined,
+    startDate: slot.startDate ? new Date(slot.startDate) : undefined,
+    recurrenceType: slot.recurrenceType ?? undefined,
+    recurrenceDaysOfWeek: slot.recurrenceDaysOfWeek ?? undefined,
+    recurrenceEndDate: slot.recurrenceEndDate ? new Date(slot.recurrenceEndDate) : undefined,
+    seriesId: slot.seriesId ?? undefined,
+    occurrenceDate: slot.occurrenceDate ? new Date(slot.occurrenceDate) : undefined,
+    isRecurringInstance: slot.isRecurringInstance ?? undefined,
     createdAt: new Date(slot.createdAt),
     updatedAt: new Date(slot.updatedAt),
   };

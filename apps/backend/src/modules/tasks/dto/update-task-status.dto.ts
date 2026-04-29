@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
@@ -30,4 +31,8 @@ export class UpdateTaskStatusDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  @IsOptional()
+  @IsISO8601({ strict: true, strictSeparator: true })
+  occurrenceDate?: string;
 }

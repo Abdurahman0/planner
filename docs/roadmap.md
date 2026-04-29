@@ -22,7 +22,6 @@
 - React Native chart/native compatibility fixes
 - shared floating CTA system on main tab screens
 - Profile test-push UX for real device notification validation
-- Push Debug profile diagnostics for permission / project ID / token / registration status
 - auth screen UX hardening:
   - password visibility toggle
   - keyboard-safe layout
@@ -35,6 +34,11 @@
   - backend test push endpoint
   - internal cron-triggerable notification sweep
 - config-level Android edge-to-edge system bar setup
+- recurring task and recurring routine-block model
+- recurring occurrence expansion in planner views
+- recurrence month-view counting/rendering fix
+- unscheduled daily-task notification MVP
+- notification dedupe hardening for unchanged daily-task reminders
 
 ## CURRENT
 
@@ -52,6 +56,9 @@
 - Render redeploy verification for `/availability`, `/notifications/test-push`, and `/notifications/run-sweep`
 - Firebase `google-services.json` and EAS FCM credential verification for APK push token creation
 - OEM-specific Android nav bar transparency QA on physical devices
+- final production QA after removing temporary push debug/profile record surfaces
+- recurrence QA across day/week/month views
+- daily-task notification QA on real Android devices
 
 ## NEXT
 
@@ -60,8 +67,9 @@
 3. AI planning improvement using saved availability
 4. billing UI and payment status UX
 5. dedicated Android notification icon asset and final push credential verification
-6. onboarding polish
-7. launch preparation
+6. single-occurrence edit/delete for recurring series
+7. onboarding polish
+8. launch preparation
 
 ## Notes
 
@@ -72,5 +80,6 @@ Not yet done:
 - deep planner conflict handling
 - drag-and-drop rescheduling
 - native support for cross-midnight planner blocks without manual splitting
+- true native ongoing/non-dismissible Android task notification if the product still requires it after Expo MVP validation
 - full production scheduler/queue infrastructure beyond current cron + in-process fallback
 - launch-grade QA and production verification

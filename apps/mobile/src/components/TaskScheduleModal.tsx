@@ -12,8 +12,8 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Goal, Task, TaskType } from '@packages/shared';
-import { Calendar, X } from 'lucide-react-native';
+import { Goal, RecurrenceType, Task, TaskType } from '@packages/shared';
+import { Calendar, Repeat2, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addMinutesToTime } from '../lib/planner';
 
@@ -35,6 +35,9 @@ interface TaskScheduleModalProps {
     estimatedMinutes?: number;
     targetValue?: number;
     targetUnit?: string;
+    recurrenceType?: RecurrenceType;
+    recurrenceDaysOfWeek?: number[];
+    recurrenceEndDate?: Date;
   }) => Promise<void>;
   onUpdate: (taskId: string, input: {
     title?: string;
@@ -46,9 +49,30 @@ interface TaskScheduleModalProps {
     estimatedMinutes?: number | null;
     targetValue?: number | null;
     targetUnit?: string | null;
+    recurrenceType?: RecurrenceType;
+    recurrenceDaysOfWeek?: number[];
+    recurrenceEndDate?: Date | null;
   }) => Promise<void>;
   isLoading?: boolean;
 }
+
+const recurrenceOptions = [
+  { label: 'None', value: RecurrenceType.NONE },
+  { label: 'Daily', value: RecurrenceType.DAILY },
+  { label: 'Weekly', value: RecurrenceType.WEEKLY },
+  { label: 'Monthly', value: RecurrenceType.MONTHLY },
+  { label: 'Yearly', value: RecurrenceType.YEARLY },
+];
+
+const weekdayOptions = [
+  { label: 'S', value: 0 },
+  { label: 'M', value: 1 },
+  { label: 'T', value: 2 },
+  { label: 'W', value: 3 },
+  { label: 'T', value: 4 },
+  { label: 'F', value: 5 },
+  { label: 'S', value: 6 },
+];
 
 export function TaskScheduleModal({
   visible,
@@ -76,6 +100,10 @@ export function TaskScheduleModal({
   const [targetUnit, setTargetUnit] = useState('unit');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>(RecurrenceType.NONE);
+  const [recurrenceDaysOfWeek, setRecurrenceDaysOfWeek] = useState<number[]>([]);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | null>(null);
+  const [showRecurrenceEndDatePicker, setShowRecurrenceEndDatePicker] = useState(false);
 
   const defaultEndTime = initialStartTime ? addMinutesToTime(initialStartTime, 60) : '';
 
@@ -94,7 +122,16 @@ export function TaskScheduleModal({
     setEstimatedMinutes(task?.estimatedMinutes ? String(task.estimatedMinutes) : '60');
     setTargetValue(task?.targetValue ? String(task.targetValue) : '1');
     setTargetUnit(task?.targetUnit ?? 'unit');
-    setShowAdvancedOptions(Boolean(task?.description || task?.type === TaskType.UNIT_BASED));
+    setRecurrenceType(task?.recurrenceType ?? RecurrenceType.NONE);
+    setRecurrenceDaysOfWeek(task?.recurrenceDaysOfWeek ?? []);
+    setRecurrenceEndDate(task?.recurrenceEndDate ?? null);
+    setShowAdvancedOptions(
+      Boolean(
+        task?.description ||
+        task?.type === TaskType.UNIT_BASED ||
+        (task?.recurrenceType && task.recurrenceType !== RecurrenceType.NONE),
+      ),
+    );
   }, [defaultEndTime, goals, initialStartTime, selectedDate, task, visible]);
 
   useEffect(() => {
@@ -109,9 +146,34 @@ export function TaskScheduleModal({
     }
   }, [estimatedMinutes, startTime, task, taskType, visible]);
 
+  useEffect(() => {
+    if (recurrenceType !== RecurrenceType.WEEKLY) {
+      return;
+    }
+
+    if (recurrenceDaysOfWeek.length === 0) {
+      setRecurrenceDaysOfWeek([plannedDate.getDay()]);
+    }
+  }, [plannedDate, recurrenceDaysOfWeek.length, recurrenceType]);
+
+  const toggleRecurrenceDay = (day: number) => {
+    setRecurrenceDaysOfWeek((current) => (
+      current.includes(day)
+        ? current.filter((value) => value !== day)
+        : [...current, day].sort((left, right) => left - right)
+    ));
+  };
+
+  const normalizedRecurrenceDaysOfWeek = recurrenceType === RecurrenceType.WEEKLY
+    ? recurrenceDaysOfWeek
+    : undefined;
+  const normalizedRecurrenceEndDate = recurrenceType === RecurrenceType.NONE
+    ? undefined
+    : recurrenceEndDate ?? undefined;
+
   const handleSubmit = async () => {
     if (task) {
-      await onUpdate(task.id, {
+      await onUpdate(task.seriesId ?? task.id, {
         title: title.trim(),
         description: description.trim() || null,
         type: taskType,
@@ -121,6 +183,9 @@ export function TaskScheduleModal({
         estimatedMinutes: taskType === TaskType.TIME_BASED ? Number(estimatedMinutes) || null : null,
         targetValue: taskType === TaskType.UNIT_BASED ? Number(targetValue) || null : null,
         targetUnit: taskType === TaskType.UNIT_BASED ? targetUnit.trim() || null : null,
+        recurrenceType,
+        recurrenceDaysOfWeek: normalizedRecurrenceDaysOfWeek,
+        recurrenceEndDate: recurrenceType === RecurrenceType.NONE ? null : recurrenceEndDate,
       });
       return;
     }
@@ -136,6 +201,9 @@ export function TaskScheduleModal({
       estimatedMinutes: taskType === TaskType.TIME_BASED ? Number(estimatedMinutes) || undefined : undefined,
       targetValue: taskType === TaskType.UNIT_BASED ? Number(targetValue) || undefined : undefined,
       targetUnit: taskType === TaskType.UNIT_BASED ? targetUnit.trim() || undefined : undefined,
+      recurrenceType,
+      recurrenceDaysOfWeek: normalizedRecurrenceDaysOfWeek,
+      recurrenceEndDate: normalizedRecurrenceEndDate,
     });
   };
 
@@ -344,6 +412,92 @@ export function TaskScheduleModal({
                           onChangeText={setTargetUnit}
                         />
                       </View>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.field}>
+                    <View style={styles.recurrenceHeader}>
+                      <Text style={styles.label}>Repeat</Text>
+                      {recurrenceType !== RecurrenceType.NONE ? (
+                        <View style={styles.recurrenceHint}>
+                          <Repeat2 size={12} color="#C084FC" />
+                          <Text style={styles.recurrenceHintText}>This task repeats automatically.</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <View style={styles.chipsWrap}>
+                      {recurrenceOptions.map((option) => (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[styles.optionChip, recurrenceType === option.value && styles.optionChipActive]}
+                          onPress={() => setRecurrenceType(option.value)}
+                        >
+                          <Text style={[styles.optionChipText, recurrenceType === option.value && styles.optionChipTextActive]}>
+                            {option.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {recurrenceType === RecurrenceType.WEEKLY ? (
+                    <View style={styles.field}>
+                      <Text style={styles.label}>Repeat On</Text>
+                      <View style={styles.weekdayRow}>
+                        {weekdayOptions.map((option) => (
+                          <TouchableOpacity
+                            key={`${option.value}-${option.label}`}
+                            style={[
+                              styles.weekdayChip,
+                              recurrenceDaysOfWeek.includes(option.value) && styles.weekdayChipActive,
+                            ]}
+                            onPress={() => toggleRecurrenceDay(option.value)}
+                          >
+                            <Text
+                              style={[
+                                styles.weekdayChipText,
+                                recurrenceDaysOfWeek.includes(option.value) && styles.weekdayChipTextActive,
+                              ]}
+                            >
+                              {option.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {recurrenceType !== RecurrenceType.NONE ? (
+                    <View style={styles.field}>
+                      <Text style={styles.label}>End Date</Text>
+                      <View style={styles.endDateRow}>
+                        <TouchableOpacity style={styles.dateButton} onPress={() => setShowRecurrenceEndDatePicker(true)}>
+                          <Calendar size={16} color="#A855F7" />
+                          <Text style={styles.dateButtonText}>
+                            {recurrenceEndDate ? recurrenceEndDate.toLocaleDateString() : 'No end date'}
+                          </Text>
+                        </TouchableOpacity>
+                        {recurrenceEndDate ? (
+                          <TouchableOpacity style={styles.clearChip} onPress={() => setRecurrenceEndDate(null)}>
+                            <Text style={styles.clearChipText}>Clear</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      {showRecurrenceEndDatePicker ? (
+                        <DateTimePicker
+                          value={recurrenceEndDate ?? plannedDate}
+                          mode="date"
+                          display="default"
+                          minimumDate={plannedDate}
+                          onChange={(_event, nextDate) => {
+                            setShowRecurrenceEndDatePicker(false);
+
+                            if (nextDate) {
+                              setRecurrenceEndDate(nextDate);
+                            }
+                          }}
+                        />
+                      ) : null}
                     </View>
                   ) : null}
                 </>
@@ -569,5 +723,88 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingTop: 16,
+  },
+  recurrenceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  recurrenceHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recurrenceHintText: {
+    color: '#C084FC',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  optionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  optionChipActive: {
+    backgroundColor: '#A855F722',
+    borderColor: '#A855F7',
+  },
+  optionChipText: {
+    color: '#8A8A8A',
+    fontWeight: '600',
+  },
+  optionChipTextActive: {
+    color: '#fff',
+  },
+  weekdayRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  weekdayChip: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#222',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekdayChipActive: {
+    backgroundColor: '#A855F7',
+    borderColor: '#A855F7',
+  },
+  weekdayChipText: {
+    color: '#9A9A9A',
+    fontWeight: '700',
+  },
+  weekdayChipTextActive: {
+    color: '#fff',
+  },
+  endDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  clearChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  clearChipText: {
+    color: '#9A9A9A',
+    fontWeight: '600',
   },
 });

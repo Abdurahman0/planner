@@ -38,7 +38,8 @@ Current maturity level:
 - payments backend: Click, Payme, webhook-driven upgrades
 - notifications backend: reminders, missed-task alerts, streaks, device registration
 - backend-driven Expo push notifications with test-push and cron-triggered sweep endpoints
-- real-device push debugging path in Profile for permission / project ID / token / registration verification
+- recurring task series and recurring routine-block support
+- unscheduled daily-task reminder MVP
 - mobile auth/goals/tasks/availability/notifications integration
 - Android-safe-area and system navigation fixes
 - Expo/EAS build configuration at repo root
@@ -52,6 +53,7 @@ Current maturity level:
 - cron/scheduler production validation for closed-app push delivery
 - deeper AI use of saved availability
 - drag-and-drop or resize-based planner interactions
+- single-occurrence editing for recurring series
 
 ## Run Backend
 
@@ -126,7 +128,26 @@ Push delivery note:
   - a valid `google-services.json` wired into the Android build for package `com.aiplanner.mobile`
   - valid FCM V1 credentials uploaded in EAS for the Expo project
 
-If Push Debug shows `Default FirebaseApp is not initialized`, the APK was built without correct Firebase client setup. That is a native build/config problem, not a backend auth problem.
+If Android push token creation fails with `Default FirebaseApp is not initialized`, the APK was built without correct Firebase client setup. That is a native build/config problem, not a backend auth problem.
+
+Recurring planner note:
+
+- recurring tasks and routine blocks now support:
+  - `none`
+  - `daily`
+  - `weekly`
+  - `monthly`
+  - `yearly`
+- weekly recurrence supports explicit weekdays
+- current mobile editing updates the whole series
+- single-occurrence edit/delete is still future work
+
+Daily-task reminder note:
+
+- incomplete unscheduled tasks for today can be mirrored into a local Android reminder while the app is open and synced
+- backend sweep can also re-send a daily-task reminder while incomplete tasks remain
+- identical reminder payloads are deduplicated so the same push is not sent on every sweep
+- this is an Expo-compatible MVP, not a verified true non-dismissible Android ongoing notification
 
 ## Quick Links
 

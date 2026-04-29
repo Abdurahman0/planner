@@ -28,6 +28,11 @@
 - tab bars must remain safe-area aware and must not introduce bottom seams or system-button overlap
 - auth screens must remain keyboard-safe on Android and iOS
 - task and schedule modals must remain keyboard-safe on real Android devices, including expanded advanced fields
+- recurrence UI must stay simple:
+  - repeat type
+  - weekly day picker when needed
+  - optional end date
+  - avoid full RRULE-style complexity unless the backend truly needs it
 - password visibility toggles must stay UI-only
 - use Expo notification channels explicitly on Android
 - notification tap routing must target existing app routes only
@@ -39,7 +44,11 @@
 - Expo push token creation must resolve the EAS project ID from runtime config, not guess
 - Expo Android push registration must use an Expo push token, not a raw FCM token
 - Android remote push builds must include valid Firebase client config plus EAS FCM credentials
-- real-device push debugging UI may expose safe status summaries only, never full Expo tokens or JWTs
+- production mobile code must not log raw API URLs, request bodies, push tokens, or backend response payloads
+- do not claim true Android non-dismissible ongoing notifications unless verified with native support beyond current Expo limits
+- unscheduled daily-task reminders must stay non-sensitive and should list at most 3 task titles
+- do not ship temporary debug panels that expose internal push-registration state in the production UI
+- never render raw backend notification records in Profile as a production-facing experience
 
 ## Backend Rules
 
@@ -49,10 +58,13 @@
 - do not accept client-controlled `userId`
 - keep payment confirmation webhook-driven
 - keep quota and subscription checks in backend
+- keep recurrence rules and occurrence expansion in backend/shared logic, not ad hoc per-screen client code
+- protect recurrence endpoints with the same ownership and validation rules as regular tasks/availability
 - keep push device registration JWT-protected
 - keep push payloads free of secrets and private account data
 - keep internal cron/sweep endpoints protected with a server-side secret only
 - best-effort push delivery must never block saving the in-app notification record
+- deduplicate identical reminder content instead of re-sending the same push on every sweep
 - invalid Expo device tokens should be removed when the provider marks them unregistered
 - when new routes are added, verify deployed environments expose them before assuming mobile errors are auth-related
 

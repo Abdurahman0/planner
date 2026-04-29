@@ -90,14 +90,18 @@ export default function CalendarScreen() {
 
   const handleSaveScheduleBlock = async (input: {
     dayOfWeek: number;
+    startDate?: Date;
     startTime: string;
     endTime: string;
     type: AvailabilitySlot['type'];
     label?: string;
+    recurrenceType?: AvailabilitySlot['recurrenceType'];
+    recurrenceDaysOfWeek?: number[];
+    recurrenceEndDate?: Date;
   }) => {
     try {
       if (selectedSlot) {
-        await updateAvailability(selectedSlot.id, input);
+        await updateAvailability(selectedSlot.seriesId ?? selectedSlot.id, input);
       } else {
         await createAvailability(input);
       }
@@ -115,7 +119,7 @@ export default function CalendarScreen() {
     }
 
     try {
-      await deleteAvailability(selectedSlot.id);
+      await deleteAvailability(selectedSlot.seriesId ?? selectedSlot.id);
       closeScheduleModal();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to delete schedule block';
@@ -134,6 +138,9 @@ export default function CalendarScreen() {
     estimatedMinutes?: number;
     targetValue?: number;
     targetUnit?: string;
+    recurrenceType?: Task['recurrenceType'];
+    recurrenceDaysOfWeek?: number[];
+    recurrenceEndDate?: Date;
   }) => {
     try {
       await createTask(input);
@@ -157,6 +164,9 @@ export default function CalendarScreen() {
       estimatedMinutes?: number | null;
       targetValue?: number | null;
       targetUnit?: string | null;
+      recurrenceType?: Task['recurrenceType'];
+      recurrenceDaysOfWeek?: number[];
+      recurrenceEndDate?: Date | null;
     },
   ) => {
     try {

@@ -1,7 +1,15 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Task, TaskStatus } from '@packages/shared';
-import { getDayScheduleDensity, getScheduledTasks, getTasksForDate, getUnscheduledTasks, getTaskStatusColor } from '../lib/planner';
+import { Repeat2 } from 'lucide-react-native';
+import {
+  getDayScheduleDensity,
+  getScheduledTasks,
+  getTaskRecurrenceLabel,
+  getTasksForDate,
+  getTaskStatusColor,
+  getUnscheduledTasks,
+} from '../lib/planner';
 
 interface WeekViewProps {
   selectedDate: Date;
@@ -74,6 +82,12 @@ export const WeekView: React.FC<WeekViewProps> = ({ selectedDate, tasks }) => {
                       <Text style={styles.taskMeta}>
                         {task.startTime && task.endTime ? `${task.startTime} - ${task.endTime}` : 'Unscheduled'}
                       </Text>
+                      {task.recurrenceType && task.recurrenceType !== 'none' ? (
+                        <View style={styles.repeatRow}>
+                          <Repeat2 size={12} color="#C084FC" />
+                          <Text style={styles.repeatText}>{getTaskRecurrenceLabel(task)}</Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                 ))
@@ -218,5 +232,16 @@ const styles = StyleSheet.create({
     color: '#8A8A8A',
     fontSize: 12,
     marginTop: 4,
+  },
+  repeatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  repeatText: {
+    color: '#C084FC',
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

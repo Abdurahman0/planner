@@ -10,8 +10,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { AvailabilitySlot, AvailabilityType } from '@packages/shared';
-import { X } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { AvailabilitySlot, AvailabilityType, RecurrenceType } from '@packages/shared';
+import { Calendar, Repeat2, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addMinutesToTime } from '../lib/planner';
 
@@ -23,10 +24,14 @@ interface ScheduleBlockModalProps {
   onClose: () => void;
   onSave: (input: {
     dayOfWeek: number;
+    startDate?: Date;
     startTime: string;
     endTime: string;
     type: AvailabilityType;
     label?: string;
+    recurrenceType?: RecurrenceType;
+    recurrenceDaysOfWeek?: number[];
+    recurrenceEndDate?: Date;
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
   isLoading?: boolean;
@@ -40,6 +45,24 @@ const availabilityTypes = [
   AvailabilityType.AVAILABLE,
   AvailabilityType.BLOCKED,
   AvailabilityType.CUSTOM,
+];
+
+const recurrenceOptions = [
+  { label: 'None', value: RecurrenceType.NONE },
+  { label: 'Daily', value: RecurrenceType.DAILY },
+  { label: 'Weekly', value: RecurrenceType.WEEKLY },
+  { label: 'Monthly', value: RecurrenceType.MONTHLY },
+  { label: 'Yearly', value: RecurrenceType.YEARLY },
+];
+
+const weekdayOptions = [
+  { label: 'S', value: 0 },
+  { label: 'M', value: 1 },
+  { label: 'T', value: 2 },
+  { label: 'W', value: 3 },
+  { label: 'T', value: 4 },
+  { label: 'F', value: 5 },
+  { label: 'S', value: 6 },
 ];
 
 export function ScheduleBlockModal({
@@ -67,6 +90,10 @@ export function ScheduleBlockModal({
   const [type, setType] = useState<AvailabilityType>(AvailabilityType.WORK);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>(RecurrenceType.WEEKLY);
+  const [recurrenceDaysOfWeek, setRecurrenceDaysOfWeek] = useState<number[]>([selectedDate.getDay()]);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | null>(null);
+  const [showRecurrenceEndDatePicker, setShowRecurrenceEndDatePicker] = useState(false);
 
   useEffect(() => {
     if (!visible) {
@@ -77,15 +104,40 @@ export function ScheduleBlockModal({
     setType(slot?.type ?? AvailabilityType.WORK);
     setStartTime(slot?.startTime ?? initialStartTime ?? '09:00');
     setEndTime(slot?.endTime ?? defaultEndTime);
+    setRecurrenceType(slot?.recurrenceType ?? RecurrenceType.WEEKLY);
+    setRecurrenceDaysOfWeek(slot?.recurrenceDaysOfWeek ?? [selectedDate.getDay()]);
+    setRecurrenceEndDate(slot?.recurrenceEndDate ?? null);
   }, [defaultEndTime, initialStartTime, slot, visible]);
+
+  useEffect(() => {
+    if (recurrenceType !== RecurrenceType.WEEKLY) {
+      return;
+    }
+
+    if (recurrenceDaysOfWeek.length === 0) {
+      setRecurrenceDaysOfWeek([selectedDate.getDay()]);
+    }
+  }, [recurrenceDaysOfWeek.length, recurrenceType, selectedDate]);
+
+  const toggleRecurrenceDay = (day: number) => {
+    setRecurrenceDaysOfWeek((current) => (
+      current.includes(day)
+        ? current.filter((value) => value !== day)
+        : [...current, day].sort((left, right) => left - right)
+    ));
+  };
 
   const handleSave = async () => {
     await onSave({
       dayOfWeek: selectedDate.getDay(),
+      startDate: selectedDate,
       startTime,
       endTime,
       type,
       label: label.trim() || undefined,
+      recurrenceType,
+      recurrenceDaysOfWeek: recurrenceType === RecurrenceType.WEEKLY ? recurrenceDaysOfWeek : undefined,
+      recurrenceEndDate: recurrenceType === RecurrenceType.NONE ? undefined : recurrenceEndDate ?? undefined,
     });
   };
 
@@ -175,6 +227,92 @@ export function ScheduleBlockModal({
                   />
                 </View>
               </View>
+
+              <View style={styles.field}>
+                <View style={styles.recurrenceHeader}>
+                  <Text style={styles.label}>Repeat</Text>
+                  {recurrenceType !== RecurrenceType.NONE ? (
+                    <View style={styles.recurrenceHint}>
+                      <Repeat2 size={12} color="#C084FC" />
+                      <Text style={styles.recurrenceHintText}>This block repeats automatically.</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.chips}>
+                  {recurrenceOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[styles.chip, recurrenceType === option.value && styles.chipActive]}
+                      onPress={() => setRecurrenceType(option.value)}
+                    >
+                      <Text style={[styles.chipText, recurrenceType === option.value && styles.chipTextActive]}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {recurrenceType === RecurrenceType.WEEKLY ? (
+                <View style={styles.field}>
+                  <Text style={styles.label}>Repeat On</Text>
+                  <View style={styles.weekdayRow}>
+                    {weekdayOptions.map((option) => (
+                      <TouchableOpacity
+                        key={`${option.value}-${option.label}`}
+                        style={[
+                          styles.weekdayChip,
+                          recurrenceDaysOfWeek.includes(option.value) && styles.weekdayChipActive,
+                        ]}
+                        onPress={() => toggleRecurrenceDay(option.value)}
+                      >
+                        <Text
+                          style={[
+                            styles.weekdayChipText,
+                            recurrenceDaysOfWeek.includes(option.value) && styles.weekdayChipTextActive,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              {recurrenceType !== RecurrenceType.NONE ? (
+                <View style={styles.field}>
+                  <Text style={styles.label}>End Date</Text>
+                  <View style={styles.endDateRow}>
+                    <TouchableOpacity style={styles.inputButton} onPress={() => setShowRecurrenceEndDatePicker(true)}>
+                      <Calendar size={16} color="#A855F7" />
+                      <Text style={styles.inputButtonText}>
+                        {recurrenceEndDate ? recurrenceEndDate.toLocaleDateString() : 'No end date'}
+                      </Text>
+                    </TouchableOpacity>
+                    {recurrenceEndDate ? (
+                      <TouchableOpacity style={styles.clearChip} onPress={() => setRecurrenceEndDate(null)}>
+                        <Text style={styles.clearChipText}>Clear</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  {showRecurrenceEndDatePicker ? (
+                    <DateTimePicker
+                      value={recurrenceEndDate ?? selectedDate}
+                      mode="date"
+                      display="default"
+                      minimumDate={selectedDate}
+                      onChange={(_event, nextDate) => {
+                        setShowRecurrenceEndDatePicker(false);
+
+                        if (nextDate) {
+                          setRecurrenceEndDate(nextDate);
+                        }
+                      }}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
             </ScrollView>
 
             <View style={[styles.footer, { paddingBottom: footerPaddingBottom }]}>
@@ -288,12 +426,86 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: '#fff',
   },
+  recurrenceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  recurrenceHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recurrenceHintText: {
+    color: '#C084FC',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   row: {
     flexDirection: 'row',
     gap: 12,
   },
   rowField: {
     flex: 1,
+  },
+  weekdayRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  weekdayChip: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#222',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekdayChipActive: {
+    backgroundColor: '#A855F7',
+    borderColor: '#A855F7',
+  },
+  weekdayChipText: {
+    color: '#9A9A9A',
+    fontWeight: '700',
+  },
+  weekdayChipTextActive: {
+    color: '#fff',
+  },
+  endDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  inputButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#111',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#222',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flex: 1,
+  },
+  inputButtonText: {
+    color: '#fff',
+  },
+  clearChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  clearChipText: {
+    color: '#9A9A9A',
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',

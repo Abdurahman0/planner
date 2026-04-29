@@ -72,6 +72,8 @@ auth -> create goal -> create or generate tasks -> schedule day/week -> complete
 - planner availability blocks
 - scheduled tasks
 - unscheduled tasks
+- recurring task series
+- recurring routine blocks
 - day/week/month planner views
 - day view quick-add flow
 - `Plan Day` planner sheet
@@ -89,19 +91,28 @@ Current mobile planner behavior:
 - user can define routine blocks like sleep, work, study, eating, and custom blocks
 - scheduled tasks appear inside the hourly timeline
 - unscheduled tasks stay in a separate section until placed
+- tasks and routine blocks can repeat:
+  - daily
+  - weekly
+  - monthly
+  - yearly
 - each main tab now has a context-aware floating CTA for the primary next action
 
 Current notification behavior:
 
-- the app keeps an in-app record list for recent planner events
 - backend-generated Expo push notifications are the primary user-facing notification surface
-- the in-app record list is history/debug context, not the main delivery mechanism
 - closed-app/background delivery depends on backend sweep or cron execution, not just the app UI
-- Profile includes a developer-safe test push action and debug summary for real-device verification
+- Profile keeps a test push action for authenticated QA without exposing internal state
 - task reminders can surface as Android system notifications
 - missed-task and progress feedback can surface as Android system notifications
 - streak rewards can surface as Android system notifications
 - daily planning reminders can bring the user back into the planner flow
+- unscheduled daily tasks can surface as a persistent-ish Android reminder:
+  - up to 3 task titles shown
+  - oldest created tasks first
+  - if more remain, notification adds `+N more tasks`
+  - completion removes tasks from the next refresh
+  - identical reminders are deduplicated instead of re-sending on every sweep
 
 ## Current Limitations
 
@@ -110,8 +121,11 @@ Current notification behavior:
 - drag-and-drop rescheduling is not implemented
 - task resize by drag is not implemented
 - overlap handling in the UI is still basic
+- recurring series editing is currently whole-series only
+- monthly/yearly recurrence uses calendar-date clamping for end-of-month safety
 - Android notification styling is limited by OS/system rendering rules
 - Android push also depends on correct Firebase client setup inside the APK plus EAS FCM credentials
-- push behavior still needs full real-device QA with production Expo credentials
+- push behavior still requires final real-device QA with production Expo credentials
 - closed-app/background push depends on deployed backend sweep/cron execution, not just the app UI being open
+- true Android non-dismissible ongoing notifications are not claimed in the current Expo/EAS MVP
 - real-device QA is still required before public launch
