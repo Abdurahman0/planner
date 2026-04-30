@@ -17,6 +17,8 @@ export const AndroidNotificationVisibility = {
   PUBLIC: 1,
 };
 
+export const DEFAULT_ACTION_IDENTIFIER = 'expo.modules.notifications.actions.DEFAULT';
+
 export function setNotificationHandler() {
   return undefined;
 }
@@ -26,6 +28,10 @@ export async function setNotificationChannelAsync() {
 }
 
 export async function setNotificationCategoryAsync() {
+  return undefined;
+}
+
+export async function registerTaskAsync() {
   return undefined;
 }
 

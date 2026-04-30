@@ -2,22 +2,18 @@
 
 ## Status
 
-The backend is functional and structured for deployment-style use. It is not a toy scaffold anymore.
+Implemented:
 
-Implemented areas:
-
-- bootstrap
 - auth
 - users
 - goals
 - tasks
 - availability
-- AI
+- AI plan generation / replan
 - payments
-- notifications
-- retention logic
+- notifications / retention
 
-## Implemented Endpoints
+## Endpoints
 
 ### Health
 
@@ -55,16 +51,6 @@ Implemented areas:
 - `PATCH /availability/:id`
 - `DELETE /availability/:id`
 
-### AI
-
-- `POST /ai/generate-plan`
-- `POST /ai/replan`
-
-### Payments
-
-- `POST /payments/initiate`
-- `POST /payments/webhook`
-
 ### Notifications
 
 - `GET /notifications`
@@ -75,287 +61,148 @@ Implemented areas:
 - `POST /notifications/run-sweep`
 - `PATCH /notifications/:id/read`
 
-## Security Protections
-
-Implemented protections:
+## Security
 
 - JWT on user-owned routes
-- DTO validation with global `ValidationPipe`
-- ownership checks on goals, tasks, availability, notifications
-- safe auth responses
-- password hashing with `bcryptjs`
-- passwords stored only as `passwordHash`
-- password hashes never returned from API responses
-- generic invalid-credentials behavior
-- premium AI-goal enforcement in backend
-- AI quota enforcement in backend
-- payment webhook verification
-- idempotent payment processing
+- DTO validation
+- no client-controlled `userId`
+- ownership checks on goals, tasks, availability, notifications, and devices
+- passwords stored only as hashes
+- push device registration remains JWT-protected
+- task completion from notification actions still goes through the JWT-protected task status endpoint
 
-Auth UX note:
+## Tasks and Recurrence
 
-- frontend password visibility toggle does not change backend auth or password storage behavior
-- backend does not log or persist plain-text passwords
-
-## Goal Rules
-
-Implemented:
-
-- free users cannot create AI goals
-- premium users can create AI goals
-- premium users can have at most 3 active AI-managed goals
-- `projectedDate` starts equal to `targetDate`
-- deletes are soft archive for goals
-
-## Task and Progress Rules
-
-Implemented:
-
-- tasks are user-owned and may optionally be linked to a goal
-- task status changes write `TaskProgressLog`
-- projected deadline recalculation happens from real task progress
+- tasks are directly user-owned
+- tasks may optionally belong to a goal
+- standalone tasks are valid and user-scoped through `Task.userId`
 - recurring task series support:
   - `none`
   - `daily`
   - `weekly`
   - `monthly`
   - `yearly`
-- recurring task occurrence overrides stored in `TaskOccurrence`
-- monthly/yearly recurrence expansion uses clamped calendar dates so end-of-month and leap-year series do not drift into the wrong month
-- scheduled tasks support:
-  - `plannedDate`
-  - `startTime`
-  - `endTime`
-- unscheduled tasks remain valid
-- standalone tasks remain valid without `goalId`
-- unscheduled daily tasks are tasks with:
-  - `plannedDate = today`
-  - `startTime = null`
-  - `endTime = null`
-  - `status != done`
-- goal ownership is still validated whenever `goalId` is supplied
+- recurring occurrence overrides are stored in `TaskOccurrence`
+- recurrence expansion is bounded to visible/query ranges
+- monthly/yearly recurrence uses calendar-date clamping for end-of-month and leap-year safety
 
-## Availability Rules
+## Availability
 
-Implemented:
-
-- recurring schedule blocks:
+- recurring routine blocks support:
   - `none`
   - `daily`
   - `weekly`
   - `monthly`
   - `yearly`
-- supported types:
-  - `sleep`
-  - `eating`
-  - `work`
-  - `study`
-  - `available`
-  - `blocked`
-  - `custom`
-- time format validation
-- `endTime > startTime`
-- overlapping blocks rejected
-- recurrence range validation and generation limits
+- overlap checks remain enforced
+- cross-midnight single-block availability is still not supported
 
-Deployment note:
+## Notifications
 
-- the route exists in local code and is registered in `AppModule`
-- if a deployed environment returns `Cannot GET /availability`, that deployment is stale or misbuilt rather than missing the controller locally
-- verified on April 26, 2026:
-  - `https://planner-v79c.onrender.com/availability` returned `404`
-  - Render must be redeployed from the latest commit before planner availability works on the APK
+### Standard notifications
 
-## AI Rules
+Backend creates notification rows and sends Expo push for:
 
-Implemented:
-
-- generate-plan
-- replan
-- strict JSON validation
-- usage logging
-- provider call isolation from DB writes
-
-Current limitation:
-
-- saved availability exists, but AI does not yet deeply schedule against it in the way the planner now supports
-
-## Payment Rules
-
-Implemented:
-
-- Click integration
-- Payme integration
-- `PaymentTransaction` persistence
-- webhook-only subscription upgrades
-- idempotent repeated webhook handling
-
-Current limitation:
-
-- production credentials and provider ops still need full live verification
-- no refund/reconciliation UI
-
-## Notification and Retention Rules
-
-Implemented:
-
-- notification storage
-- device registration
-- device registration happens through `POST /notifications/devices` after authenticated mobile bootstrap
-- reminder generation
-- recurring-task-aware reminder generation
+- scheduled reminders
 - missed-task alerts
 - progress feedback
-- streak summary/rewards
-- Expo push delivery for Android system notifications
-- daily planning reminder generation
-- unscheduled daily task reminder generation
-- `POST /notifications/refresh` is available for authenticated manual QA
-- `POST /notifications/test-push` sends a direct test push to the authenticated user's registered Expo devices
-- `POST /notifications/run-sweep` exists for internal scheduler/cron use and requires `x-internal-cron-secret`
-- `POST /notifications/devices` returns a safe registration summary:
-  - `status`
-  - `registered`
-- `POST /notifications/test-push` returns a safe delivery summary:
-  - `deviceCount`
-  - `pushesAttempted`
-  - `sentCount`
-  - `invalidTokenCount`
-- `POST /notifications/run-sweep` returns a safe operational summary:
-  - `status`
-  - `processedUsers`
-  - `notificationsCreated`
-  - `pushesAttempted`
+- streak rewards
+- day-planning reminders
 
-In-app notifications vs push notifications:
+### Daily-task notification architecture
 
-- in-app notifications are rows stored in the `Notification` table and returned by `GET /notifications`
-- push notifications are best-effort Expo deliveries sent to `UserDevice` tokens after a notification is created
-- a saved in-app notification does not guarantee Android system delivery unless the Expo push send succeeds and the device token is valid
-- backend accepts Expo push tokens; it does not require a raw client-side FCM token
+Current Android daily-task reminder path:
 
-Current limitation:
+- backend remains the source of truth for task state
+- backend still creates one logical daily-task reminder record per user/day
+- backend does **not** send a visible Expo alert for that reminder
+- backend sends a headless data-only Expo push for daily-task notification updates
+- mobile JS receives that background payload and asks the Android local Expo module to show/update one native custom notification
 
-- push delivery reliability still needs real-device validation
-- no Expo receipts polling yet beyond immediate ticket parsing
+Visible reminder rules:
 
-Current supported push content:
+- one notification per user/day
+- up to 3 task rows
+- ordering: oldest created incomplete unscheduled tasks first
+- if more remain: `+N more tasks`
 
-- task reminder:
-  - `Time to continue your plan`
-- missed task alert:
-  - `Task missed`
-- progress feedback:
-  - behind schedule -> `You are falling behind`
-  - on track / ahead -> `You are on track`
-- streak reward:
-  - `3-day streak`, `7-day streak`, and other configured milestones
-- daily planning reminder:
-  - `Plan your day`
-- daily tasks reminder:
-  - `Daily tasks`
-  - body lists up to 3 incomplete unscheduled tasks for today
-  - oldest created tasks appear first
-  - if more remain, the body ends with `+N more tasks`
-  - unchanged daily-task content is deduplicated and not re-pushed on every sweep
-  - payload includes safe task action metadata for the first visible task
-
-Expo push payload shape:
+Headless daily-task payload shape:
 
 ```json
 {
   "to": "ExpoPushToken[...]",
-  "title": "Time to continue your plan",
-  "body": "You have 2 tasks scheduled for today.",
-  "sound": "default",
+  "_contentAvailable": true,
   "priority": "high",
-  "channelId": "planner-reminders",
+  "ttl": 60,
   "data": {
-    "notificationId": "uuid",
-    "type": "reminder",
-    "goalId": "optional-uuid",
-    "taskId": "optional-uuid"
+    "notificationKind": "daily_tasks",
+    "notificationKey": "daily_tasks_<userId>_<YYYY-MM-DD>",
+    "displayTitle": "Daily Tasks",
+    "tasks": [
+      { "id": "uuid", "label": "Read book", "occurrenceDate": "2026-04-30T00:00:00.000Z" }
+    ],
+    "moreCount": 2,
+    "plannerDate": "2026-04-30T00:00:00.000Z",
+    "mode": "upsert"
   }
 }
 ```
 
-Daily-task payloads extend that with safe reminder metadata:
+Cancel payload:
 
-- `type: "daily_tasks"`
-- `notificationKind: "daily_tasks"`
-- `firstTaskId`
-- `taskIds` for the first visible 3 tasks
-- `occurrenceDate` for recurring-occurrence completion
+- same `notificationKind`
+- same `notificationKey`
+- `mode: "cancel"`
+- empty `tasks`
 
-Security properties:
+### Daily-task completion
 
-- device registration remains JWT-protected
-- test-push remains JWT-protected and only targets the authenticated user's devices
-- device registration never accepts a client-controlled `userId`
-- Expo device tokens are validated before storage and empty/invalid values are rejected
-- backend does not expose or depend on Firebase service-account secrets to the mobile app
-- push payloads contain routing metadata only
-- no secrets or private account data are sent in Expo push payloads
-- lock-screen-visible daily task notifications intentionally keep content generic:
-  - task titles only
-  - no private goal notes or auth data
-- notification access remains user-scoped
-- push delivery parameters are backend-controlled:
-  - `channelId: planner-reminders`
-  - `sound: default`
-  - `priority: high`
-- invalid Expo tokens are removed when Expo tickets indicate `DeviceNotRegistered` or malformed token errors
-- task completion from notification actions still goes through the JWT-protected task status endpoint
-- standalone tasks stay user-scoped through `Task.userId`; ownership no longer depends only on the goal relation
+- circle taps from the native Android notification do not trust local state
+- completion still uses `PATCH /tasks/:id/status`
+- recurring occurrences use `occurrenceDate` when needed
+- the Android notification may show a temporary checked state immediately after the tap, but backend confirmation still determines the final task state
+- if the app process is alive, JS completes the task immediately
+- if the app process is killed and JS/auth is unavailable, the action may queue until the next authenticated resume
 
-Android push deployment requirement:
+### Dedupe
 
-- backend delivery is only one half of Android push
-- the mobile APK must also be built with:
-  - a valid `google-services.json` for `com.aiplanner.mobile`
-  - valid EAS FCM V1 credentials for Expo push
-- if the device reports `Default FirebaseApp is not initialized`, the backend is not the root cause
+- one logical daily-task notification key:
+  - `daily_tasks_${userId}_${YYYY-MM-DD}`
+- unchanged content is not re-pushed on every sweep
+- sweep uses dedupe/cooldown instead of creating unlimited duplicates
 
-Background / closed-app delivery:
+### Device registration and push test
 
-- the backend still keeps the in-process hourly sweep as a simple fallback
-- the safer trigger is `POST /notifications/run-sweep` with `x-internal-cron-secret`
-- use that endpoint from Render Cron Job or another scheduler if the deployed service can sleep
-- `INTERNAL_CRON_SECRET` must stay server-side only
-- recommended MVP cron schedule:
-  - every 5 minutes for timely reminders
-  - every 10 minutes if resource-sensitive
-- if the Render instance can sleep, cron-triggered delivery may still be delayed by wake-up time
-- reliable Telegram-style closed-app notifications need an always-on backend or equivalent paid uptime
-- true Android non-dismissible ongoing notifications are not implemented in this Expo/EAS MVP
-- current MVP behavior is:
-  - backend sweep can re-send the daily-task reminder while incomplete unscheduled tasks remain
-  - identical daily-task reminders are throttled by dedupe/cooldown instead of re-sending every sweep
-  - the app can mirror/update a local daily-task reminder while it is open and synced
-  - the `✓ Done` action completes the first visible task when the app resumes from the notification action
+- `POST /notifications/devices` returns:
+  - `status`
+  - `registered`
+- `POST /notifications/test-push` returns:
+  - `deviceCount`
+  - `pushesAttempted`
+  - `sentCount`
+  - `invalidTokenCount`
+- invalid Expo tokens are removed when provider feedback marks them unregistered or malformed
 
-## Deployment Notes
+## Deployment
 
-Current environment in repo points to:
+Recommended Render config:
 
-- backend base URL: `https://planner-v79c.onrender.com`
-
-Recommended Render configuration:
-
-- build command:
+- build:
   - `npm install && npx prisma generate --schema apps/backend/prisma/schema.prisma && npx prisma migrate deploy --schema apps/backend/prisma/schema.prisma`
-- start command:
+- start:
   - `npm run backend:start`
-- required environment variables:
-  - `DATABASE_URL`
-  - `JWT_SECRET`
-  - `JWT_EXPIRES_IN`
-  - `GEMINI_API_KEY`
-  - `APP_BASE_URL`
-  - `INTERNAL_CRON_SECRET`
-  - payment provider variables as needed
 
-Route verification after redeploy:
+Required env:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
+- `GEMINI_API_KEY`
+- `APP_BASE_URL`
+- `INTERNAL_CRON_SECRET`
+- payment provider variables as needed
+
+Verification after redeploy:
 
 - `GET /health`
 - `GET /availability` with Bearer token
@@ -363,14 +210,9 @@ Route verification after redeploy:
 - `POST /notifications/test-push` with Bearer token
 - `POST /notifications/run-sweep` with `x-internal-cron-secret`
 
-This documents the current deployment target/example. It does not mean launch readiness is complete.
+## Known Limitations
 
-## Known Backend Limitations
-
-- recurring series single-occurrence edit/delete endpoints are not implemented yet
-- no admin feature set
-- no task delete endpoint
-- planner conflict handling is still basic
-- no background job system beyond current in-process scheduling logic
-- live payment and push reliability still need end-to-end QA
-- deployment verification is still required when new modules/routes are added
+- single-occurrence edit/delete is not implemented
+- no true non-dismissible Android ongoing notification
+- closed-app daily-task circle completion is best-effort; it may queue until next authenticated resume
+- push reliability still needs final real-device QA on the target APK/OEMs

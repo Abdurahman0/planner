@@ -43,6 +43,7 @@
     "expo-router": "~55.0.13",
     "expo-secure-store": "^55.0.13",
     "expo-status-bar": "~55.0.5",
+    "expo-task-manager": "~55.0.15",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "lucide-react-native": "^1.8.0",

@@ -1,7 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, DarkTheme } from '@react-navigation/native';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
@@ -10,11 +10,13 @@ import { useAppBootstrap } from '../src/hooks/useAppBootstrap';
 import { NotificationType, TaskStatus } from '@packages/shared';
 import { useStore } from '../src/store/useStore';
 import {
-  COMPLETE_FIRST_DAILY_TASK_ACTION_ID,
+  addNativeDailyTaskActionListener,
+  cancelNativeDailyTaskNotificationForUser,
   DAILY_TASKS_NOTIFICATION_KIND,
-  isDailyTasksNotificationData,
-  syncDailyTaskNotificationAsync,
-} from '../src/lib/pushNotifications';
+  getPendingNativeDailyTaskActionsAsync,
+  removePendingNativeDailyTaskActionsAsync,
+  syncNativeDailyTaskNotificationFromTasks,
+} from '../src/lib/nativeDailyTaskNotifications';
 
 const queryClient = new QueryClient();
 const APP_BACKGROUND_COLOR = '#000000';
@@ -31,19 +33,9 @@ function AppShell() {
   useAppBootstrap();
   const notificationPermissionNotice = useStore((state) => state.notificationPermissionNotice);
   const clearNotificationPermissionNotice = useStore((state) => state.clearNotificationPermissionNotice);
-  const tasks = useStore((state) => state.tasks);
-  const user = useStore((state) => state.user);
-  const isInitialized = useStore((state) => state.isInitialized);
   useNotificationRouting();
+  useNativeDailyTaskNotifications();
   const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    if (!isInitialized) {
-      return;
-    }
-
-    void syncDailyTaskNotificationAsync(user ? tasks : []);
-  }, [isInitialized, tasks, user]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -74,13 +66,6 @@ type NotificationNavigationTarget = {
   notificationId?: string;
 };
 
-type PendingNotificationAction = {
-  kind: 'complete-first-daily-task';
-  taskId: string;
-  occurrenceDate?: Date;
-  notificationId?: string;
-};
-
 function useNotificationRouting() {
   const router = useRouter();
   const user = useStore((state) => state.user);
@@ -88,10 +73,8 @@ function useNotificationRouting() {
   const fetchNotifications = useStore((state) => state.fetchNotifications);
   const fetchNotificationSummary = useStore((state) => state.fetchNotificationSummary);
   const markNotificationRead = useStore((state) => state.markNotificationRead);
-  const updateTaskStatus = useStore((state) => state.updateTaskStatus);
   const handledResponses = useRef(new Set<string>());
   const [pendingTarget, setPendingTarget] = useState<NotificationNavigationTarget | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingNotificationAction | null>(null);
 
   useEffect(() => {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -120,14 +103,17 @@ function useNotificationRouting() {
     function handleNotificationResponse(
       response: Notifications.NotificationResponse,
     ) {
-      const action = resolveNotificationAction(response);
-      const target = action ? null : resolveNotificationTarget(response);
-
-      if (!target && !action) {
+      if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
         return;
       }
 
-      const handledKey = action?.notificationId ?? target?.notificationId ?? response.notification.request.identifier;
+      const target = resolveNotificationTarget(response);
+
+      if (!target) {
+        return;
+      }
+
+      const handledKey = target.notificationId ?? response.notification.request.identifier;
 
       if (handledResponses.current.has(handledKey)) {
         return;
@@ -136,17 +122,7 @@ function useNotificationRouting() {
       handledResponses.current.add(handledKey);
 
       if (!isInitialized || !user) {
-        if (action) {
-          setPendingAction(action);
-          return;
-        }
-
         setPendingTarget(target);
-        return;
-      }
-
-      if (action) {
-        void completeNotificationAction(action);
         return;
       }
 
@@ -160,7 +136,6 @@ function useNotificationRouting() {
     isInitialized,
     markNotificationRead,
     router,
-    updateTaskStatus,
     user,
   ]);
 
@@ -180,16 +155,6 @@ function useNotificationRouting() {
     });
   }, [isInitialized, pendingTarget, router, user]);
 
-  useEffect(() => {
-    if (!pendingAction || !isInitialized || !user) {
-      return;
-    }
-
-    void completeNotificationAction(pendingAction).finally(() => {
-      setPendingAction(null);
-    });
-  }, [isInitialized, pendingAction, user]);
-
   async function completeNotificationNavigation(target: NotificationNavigationTarget) {
     if (target.notificationId) {
       await Promise.allSettled([
@@ -200,62 +165,12 @@ function useNotificationRouting() {
 
     router.push(target.route);
   }
-
-  async function completeNotificationAction(action: PendingNotificationAction) {
-    await updateTaskStatus(action.taskId, {
-      status: TaskStatus.DONE,
-      occurrenceDate: action.occurrenceDate,
-    });
-
-    if (action.notificationId) {
-      await Promise.allSettled([
-        markNotificationRead(action.notificationId),
-        fetchNotifications(),
-      ]);
-    }
-  }
 }
 
 function resolveNotificationTarget(
   response: Notifications.NotificationResponse,
 ): NotificationNavigationTarget | null {
   return resolveNotificationTargetFromData(response.notification.request.content.data);
-}
-
-function resolveNotificationAction(
-  response: Notifications.NotificationResponse,
-): PendingNotificationAction | null {
-  if (response.actionIdentifier !== COMPLETE_FIRST_DAILY_TASK_ACTION_ID) {
-    return null;
-  }
-
-  const data = response.notification.request.content.data;
-
-  if (!isDailyTasksNotificationData(data) || !data || typeof data !== 'object' || Array.isArray(data)) {
-    return null;
-  }
-
-  const taskId = typeof data.firstTaskId === 'string'
-    ? data.firstTaskId
-    : typeof data.taskId === 'string'
-      ? data.taskId
-      : null;
-
-  if (!taskId) {
-    return null;
-  }
-
-  const occurrenceDate = typeof data.occurrenceDate === 'string'
-    ? new Date(data.occurrenceDate)
-    : undefined;
-  const notificationId = typeof data.notificationId === 'string' ? data.notificationId : undefined;
-
-  return {
-    kind: 'complete-first-daily-task',
-    taskId,
-    occurrenceDate: occurrenceDate && !Number.isNaN(occurrenceDate.getTime()) ? occurrenceDate : undefined,
-    notificationId,
-  };
 }
 
 function resolveNotificationTargetFromData(
@@ -313,6 +228,95 @@ function resolveNotificationTargetFromData(
     route: '/(tabs)/profile',
     notificationId,
   };
+}
+
+function useNativeDailyTaskNotifications() {
+  const isInitialized = useStore((state) => state.isInitialized);
+  const user = useStore((state) => state.user);
+  const tasks = useStore((state) => state.tasks);
+  const updateTaskStatus = useStore((state) => state.updateTaskStatus);
+  const lastUserIdRef = useRef<string | null>(null);
+  const processingActionIds = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    if (lastUserIdRef.current && (!user || lastUserIdRef.current !== user.id)) {
+      void cancelNativeDailyTaskNotificationForUser(lastUserIdRef.current);
+    }
+
+    lastUserIdRef.current = user?.id ?? null;
+
+    if (!isInitialized || !user) {
+      return;
+    }
+
+    void syncNativeDailyTaskNotificationFromTasks(user.id, tasks);
+  }, [isInitialized, tasks, user]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !isInitialized || !user) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const processAction = async (action: {
+      id: string;
+      taskId: string;
+      occurrenceDate?: string | null;
+    }) => {
+      if (processingActionIds.current.has(action.id)) {
+        return;
+      }
+
+      processingActionIds.current.add(action.id);
+
+      try {
+        await updateTaskStatus(action.taskId, {
+          status: TaskStatus.DONE,
+          occurrenceDate: action.occurrenceDate ? new Date(action.occurrenceDate) : undefined,
+        });
+        await removePendingNativeDailyTaskActionsAsync([action.id]);
+      } catch {
+        // Leave the action queued for the next authenticated resume.
+      } finally {
+        processingActionIds.current.delete(action.id);
+      }
+    };
+
+    const flushPendingActions = async () => {
+      const actions = await getPendingNativeDailyTaskActionsAsync();
+
+      for (const action of actions) {
+        if (!isMounted) {
+          return;
+        }
+
+        await processAction(action);
+      }
+    };
+
+    void flushPendingActions();
+
+    const removeActionListener = addNativeDailyTaskActionListener((action) => {
+      void processAction(action);
+    });
+
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void flushPendingActions();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      removeActionListener();
+      appStateSubscription.remove();
+    };
+  }, [isInitialized, updateTaskStatus, user]);
 }
 
 const styles = StyleSheet.create({

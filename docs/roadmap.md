@@ -1,89 +1,44 @@
 # Roadmap
 
-## DONE
+## Done
 
-- schema and database foundation
-- migrations and seed
-- backend bootstrap
-- auth
-- goals API
-- tasks API
-- progress logs
-- deadline movement logic
-- frontend auth/goals/tasks integration
-- AI backend integration
+- backend foundation
+- auth / goals / tasks / availability APIs
 - payments backend
-- notifications and retention backend
-- planner scheduling layer
+- notifications / retention backend
+- planner day/week/month surface
+- recurring task and routine-block model
+- standalone task ownership model
 - Expo/EAS setup
-- Android safe-area and system UI fixes
-- planner modal safe-area fixes
-- full 24-hour day timeline
-- React Native chart/native compatibility fixes
-- shared floating CTA system on main tab screens
-- Profile test-push UX for real device notification validation
-- auth screen UX hardening:
-  - password visibility toggle
-  - keyboard-safe layout
-- Android push notification presentation:
-  - Expo push token flow
-  - Android channel setup
-  - notification tap routing
-  - authenticated permission request timing
-  - foreground in-app fallback banner
-  - backend test push endpoint
-  - internal cron-triggerable notification sweep
-- config-level Android edge-to-edge system bar setup
-- recurring task and recurring routine-block model
-- recurring occurrence expansion in planner views
-- recurrence month-view counting/rendering fix
-- unscheduled daily-task notification MVP
-- notification dedupe hardening for unchanged daily-task reminders
-- standalone task model and secure task-level ownership
-- daily-task notification `✓ Done` action fallback
-- removal of custom in-app daily reminder banner duplication
+- Android edge-to-edge and safe-area fixes
+- shared floating CTA system
+- Expo push token registration flow
+- backend push test / sweep endpoints
+- Android native custom daily-task notification module
+- headless daily-task push path
 
-## CURRENT
+## Current
 
 - real-device QA
-- preview APK testing
-- fixing mobile runtime issues
-- planner UX polish
-- full-day planner QA on real devices
-- push notification real-device validation
-- Expo push device registration validation on real APKs
-- planner bottom spacing and floating action tuning on Android
-- Render deployment verification for newly added API modules
-- background/closed-app push verification on deployed backend
-- real Android keyboard QA for planner/task modals
-- Render redeploy verification for `/availability`, `/notifications/test-push`, and `/notifications/run-sweep`
-- Firebase `google-services.json` and EAS FCM credential verification for APK push token creation
-- OEM-specific Android nav bar transparency QA on physical devices
-- final production QA after removing temporary push debug/profile record surfaces
-- recurrence QA across day/week/month views
-- daily-task notification QA on real Android devices
-- notification-action QA for killed-app resume behavior
+- Render redeploy validation
+- EAS APK validation
+- Android custom daily-task notification QA across OEMs
+- killed-app queued completion QA
+- recurrence QA across planner views
 
-## NEXT
+## Next
 
-1. full Android QA
-2. production environment verification and Render redeploy validation
+1. full Android QA on a fresh EAS APK
+2. production backend redeploy verification
 3. AI planning improvement using saved availability
 4. billing UI and payment status UX
-5. dedicated Android notification icon asset and final push credential verification
-6. single-occurrence edit/delete for recurring series
-7. onboarding polish
-8. launch preparation
+5. single-occurrence edit/delete for recurring series
+6. launch preparation
 
-## Notes
+## Not done
 
-Not yet done:
-
-- frontend AI flow
+- frontend AI entry flow
 - frontend billing flow
-- deep planner conflict handling
-- drag-and-drop rescheduling
-- native support for cross-midnight planner blocks without manual splitting
-- true native ongoing/non-dismissible Android task notification if the product still requires it after Expo MVP validation
-- full production scheduler/queue infrastructure beyond current cron + in-process fallback
-- launch-grade QA and production verification
+- drag-and-drop planner interactions
+- native cross-midnight block support
+- true non-dismissible Android ongoing task notification

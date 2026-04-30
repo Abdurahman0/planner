@@ -2,62 +2,48 @@
 
 ## Overview
 
-AI Planner is a mobile-first planner application with:
+AI Planner is a mobile-first planner with:
 
 - real auth
 - real goals and tasks APIs
-- planner scheduling with availability blocks
-- deadline projection from real progress logs
-- AI plan generation and replanning
-- payment backend for premium upgrades
-- notification and retention backend
+- planner scheduling and availability
+- recurring tasks / routine blocks
+- deadline projection from real progress
+- backend AI plan generation / replan
+- payment backend
+- notifications / retention backend
 
-This is not a launched product. It is a **working production-style foundation plus active mobile QA/polish work**.
+## Current state
 
-## Current Maturity
-
-Current maturity level:
-
-- backend: strong functional foundation
+- backend: functional and deployable
 - database: real and migrated
 - mobile app: backend-connected and buildable
-- planner UX: functional, still being polished
-- production launch readiness: not complete yet
+- planner UX: functional, still under real-device polish
+- launch readiness: not complete
 
 ## Implemented
 
 - Prisma schema and migrations
-- PostgreSQL/Neon integration
-- backend bootstrap and health endpoint
-- secure auth: register, login, JWT, `GET /users/me`
-- goals API with ownership checks and premium AI-goal rules
-- tasks API with status updates and `TaskProgressLog` writes
-- projected deadline recalculation from real progress
-- availability API and planner scheduling layer
-- AI backend: generate plan, replan, quota checks, usage logging
-- payments backend: Click, Payme, webhook-driven upgrades
-- notifications backend: reminders, missed-task alerts, streaks, device registration
-- backend-driven Expo push notifications with test-push and cron-triggered sweep endpoints
-- recurring task series and recurring routine-block support
-- unscheduled daily-task reminder MVP
-- mobile auth/goals/tasks/availability/notifications integration
-- Android-safe-area and system navigation fixes
-- Expo/EAS build configuration at repo root
+- auth / users / goals / tasks / availability
+- recurring planner model
+- standalone task ownership
+- notifications backend with:
+  - device registration
+  - test push
+  - sweep endpoint
+- Expo push token registration
+- Android native custom daily-task notification module
+- Expo/EAS configuration at repo root
 
-## Still Unfinished
+## Still unfinished
 
-- real-device QA across Android flows
+- final Android real-device QA
 - frontend AI entry flow
-- frontend billing/payment UX
-- push notification production validation
-- cron/scheduler production validation for closed-app push delivery
-- deeper AI use of saved availability
-- drag-and-drop or resize-based planner interactions
-- single-occurrence editing for recurring series
+- frontend billing flow
+- single-occurrence edit/delete for recurring series
+- true non-dismissible Android ongoing task notification
 
-## Run Backend
-
-Run from the repo root:
+## Run backend
 
 ```bash
 npm run backend:dev
@@ -69,96 +55,50 @@ Health check:
 http://localhost:3001/health
 ```
 
-Expected response:
-
-```json
-{ "status": "ok" }
-```
-
-## Run Mobile App
-
-Expo project root is the **repo root**, not `apps/mobile`.
-
-Run from the repo root:
+## Run mobile
 
 ```bash
 npm install
 npm run mobile:start
 ```
 
-Or:
+## Build Android APK
 
 ```bash
-npx expo start --lan --clear
+npx eas build -p android --profile preview --clear-cache
 ```
 
-## Build Mobile App
+## Android push requirements
 
-Run from the repo root:
+- `EXPO_PUBLIC_API_URL`
+- valid Expo project ID in app config
+- physical Android device for real push validation
+- valid `google-services.json` for `com.aiplanner.mobile`
+- valid EAS FCM V1 credentials
+- deployed backend routes for:
+  - `POST /notifications/devices`
+  - `POST /notifications/test-push`
+  - `POST /notifications/run-sweep`
 
-```bash
-npx eas build -p android --profile preview
-```
+If Expo push token creation fails with `Default FirebaseApp is not initialized`, the APK was built without correct Firebase client configuration. That is a native build/config issue, not a backend auth issue.
 
-`preview` currently builds an installable APK.
+## Daily-task notification note
 
-## API URL Configuration
+- visible daily-task reminder is Android-only
+- visible daily-task reminder is rendered by the local Expo module in `modules/daily-task-notifications`
+- backend sends a headless data-only push for daily-task reminder sync
+- only one daily-task notification should exist per user/day
+- up to 3 task rows are shown
+- body tap opens Planner
+- circle tap targets the exact task row
+- circle tap shows an immediate checked-state update for that row while backend completion is being confirmed
+- if JS/auth is unavailable in a killed app, the action may queue until the next authenticated resume
 
-For local mobile testing:
+## Quick links
 
-- set `EXPO_PUBLIC_API_URL` in the repo-root `.env`
-- use a reachable backend URL
-
-Example current production/deployment URL in this repo:
-
-```env
-EXPO_PUBLIC_API_URL="https://planner-v79c.onrender.com"
-```
-
-For EAS preview builds, `EXPO_PUBLIC_API_URL` must be set in the EAS environment so the APK resolves the backend correctly.
-
-Push delivery note:
-
-- Expo push notifications on the APK require:
-  - notification permission on-device
-  - physical-device Android testing
-  - valid Expo push token generation
-  - working backend device registration
-  - deployed backend routes for `POST /notifications/devices` and `POST /notifications/test-push`
-  - a valid `google-services.json` wired into the Android build for package `com.aiplanner.mobile`
-  - valid FCM V1 credentials uploaded in EAS for the Expo project
-
-If Android push token creation fails with `Default FirebaseApp is not initialized`, the APK was built without correct Firebase client setup. That is a native build/config problem, not a backend auth problem.
-
-Recurring planner note:
-
-- recurring tasks and routine blocks now support:
-  - `none`
-  - `daily`
-  - `weekly`
-  - `monthly`
-  - `yearly`
-- weekly recurrence supports explicit weekdays
-- current mobile editing updates the whole series
-- single-occurrence edit/delete is still future work
-
-Daily-task reminder note:
-
-- incomplete unscheduled tasks for today can be mirrored into a local Android reminder while the app is open and synced
-- backend sweep can also re-send a daily-task reminder while incomplete tasks remain
-- identical reminder payloads are deduplicated so the same push is not sent on every sweep
-- the reminder supports a `✓ Done` action that completes the first visible task when the app resumes from the notification action
-- this is an Expo-compatible MVP, not a verified true non-dismissible Android ongoing notification
-
-## Quick Links
-
-- [product.md](./product.md)
-- [architecture.md](./architecture.md)
 - [frontend.md](./frontend.md)
 - [backend.md](./backend.md)
-- [database.md](./database.md)
-- [ai.md](./ai.md)
+- [product.md](./product.md)
 - [planner-logic.md](./planner-logic.md)
-- [pricing.md](./pricing.md)
 - [roadmap.md](./roadmap.md)
 - [coding-rules.md](./coding-rules.md)

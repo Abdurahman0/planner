@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["DailyTaskNotificationsModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.dailytasknotifications.DailyTaskNotificationsModule"]
+  }
+}

@@ -26,7 +26,7 @@ const DAILY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const STREAK_MILESTONES = new Set([3, 7, 14, 30, 60, 100]);
 const EXPO_PUSH_API_URL = 'https://exp.host/--/api/v2/push/send';
 const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
-const DAILY_TASKS_CATEGORY_ID = 'daily_tasks';
+const DAILY_TASKS_NOTIFICATION_KIND = 'daily_tasks';
 const EXPO_PUSH_MAX_MESSAGES_PER_REQUEST = 100;
 const DAILY_TASKS_RESEND_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const EMPTY_PUSH_RESULT = {
@@ -101,11 +101,21 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
     if (context.unscheduledDailyTasks.length > 0) {
       const firstDailyTask = context.unscheduledDailyTasks[0];
+      const dailyTasksNotificationKey = buildDailyTasksNotificationKey(userId, context.dayKey);
+      const dailyTaskItems = context.unscheduledDailyTasks.slice(0, 3).map((task) => ({
+        id: task.seriesId ?? task.id,
+        label: task.title,
+        occurrenceDate: (task.occurrenceDate ?? task.plannedDate).toISOString(),
+      }));
+      await this.clearNotificationByDedupeKey(
+        prismaClient,
+        buildLegacyDailyTasksNotificationKey(userId, context.dayKey),
+      );
       const result = await this.createNotification(prismaClient, {
         userId,
         type: NotificationType.system,
-        dedupeKey: `${userId}:daily-tasks:${context.dayKey}`,
-        title: 'Daily tasks',
+        dedupeKey: dailyTasksNotificationKey,
+        title: 'Daily Tasks',
         body: buildDailyTaskNotificationBody(context.unscheduledDailyTasks),
         metadata: {
           taskId: firstDailyTask.id,
@@ -113,9 +123,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           taskIds: context.unscheduledDailyTasks
             .slice(0, 3)
             .map((task) => task.seriesId ?? task.id),
-          notificationKind: 'daily_tasks',
+          notificationKind: DAILY_TASKS_NOTIFICATION_KIND,
           occurrenceDate: (firstDailyTask.occurrenceDate ?? firstDailyTask.plannedDate).toISOString(),
           plannerDate: context.dayKey,
+          notificationKey: dailyTasksNotificationKey,
+          taskItems: dailyTaskItems,
+          moreCount: Math.max(0, context.unscheduledDailyTasks.length - dailyTaskItems.length),
         },
         resendAfterMs: DAILY_TASKS_RESEND_COOLDOWN_MS,
       });
@@ -126,10 +139,22 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         generated.push(result.notification);
       }
     } else {
+      const clearedDailyNotifications = await this.clearNotificationByDedupeKey(
+        prismaClient,
+        buildDailyTasksNotificationKey(userId, context.dayKey),
+      );
       await this.clearNotificationByDedupeKey(
         prismaClient,
-        `${userId}:daily-tasks:${context.dayKey}`,
+        buildLegacyDailyTasksNotificationKey(userId, context.dayKey),
       );
+
+      if (clearedDailyNotifications > 0) {
+        pushesAttempted += await this.sendDailyTasksSyncPush(userId, {
+          notificationKey: buildDailyTasksNotificationKey(userId, context.dayKey),
+          plannerDate: context.dayKey,
+          mode: 'cancel',
+        });
+      }
     }
 
     if (context.missedTasksCount > 0) {
@@ -326,6 +351,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       expoTokens.map((token) => ({
         token,
         message: {
+          kind: 'standard',
           title: 'Planner test push',
           body: 'Push notifications are working on this device.',
           type: NotificationType.system,
@@ -512,7 +538,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     prismaClient: PrismaClientLike,
     dedupeKey: string,
   ) {
-    await prismaClient.notification.updateMany({
+    const result = await prismaClient.notification.updateMany({
       where: {
         dedupeKey,
         status: NotificationStatus.unread,
@@ -522,6 +548,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         readAt: new Date(),
       },
     });
+
+    return result.count;
   }
 
   private async sendPushNotification(userId: string, notification: {
@@ -529,6 +557,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     title: string;
     body: string;
     type: NotificationType;
+    dedupeKey?: string | null;
     metadata?: Prisma.JsonValue | null;
   }) {
     const devices = await this.prisma.userDevice.findMany({
@@ -550,13 +579,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       const pushResults = await this.dispatchExpoPushMessages(
         expoDevices.map((device) => ({
           token: device.token,
-          message: {
-            title: notification.title,
-            body: notification.body,
-            type: resolvePushNotificationType(notification.type, notification.metadata),
-            notificationId: notification.id,
-            routeData: extractNotificationPushData(notification.metadata),
-          },
+          message: buildPushMessageInput(notification),
         })),
       );
 
@@ -585,13 +608,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   private async dispatchExpoPushMessages(
     deliveries: Array<{
       token: string;
-        message: {
-          title: string;
-          body: string;
-          type: NotificationType | 'daily_tasks';
-          notificationId?: string;
-          routeData?: Record<string, string | string[]>;
-        };
+      message: ExpoPushMessageInput;
     }>,
   ) {
     const invalidTokens = new Set<string>();
@@ -654,6 +671,62 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       invalidTokens: Array.from(invalidTokens),
     };
   }
+
+  private async sendDailyTasksSyncPush(
+    userId: string,
+    input: {
+      notificationKey: string;
+      plannerDate: string;
+      mode: 'cancel';
+    },
+  ) {
+    const devices = await this.prisma.userDevice.findMany({
+      where: { userId },
+      select: { token: true },
+    });
+
+    const expoTokens = devices
+      .map((device) => device.token)
+      .filter((token) => isExpoPushToken(token));
+
+    if (expoTokens.length === 0) {
+      return 0;
+    }
+
+    try {
+      const pushResults = await this.dispatchExpoPushMessages(
+        expoTokens.map((token) => ({
+          token,
+          message: {
+            kind: 'daily_tasks_sync',
+            notificationKind: DAILY_TASKS_NOTIFICATION_KIND,
+            notificationKey: input.notificationKey,
+            displayTitle: 'Daily Tasks',
+            tasks: [],
+            moreCount: 0,
+            plannerDate: input.plannerDate,
+            mode: input.mode,
+          },
+        })),
+      );
+
+      if (pushResults.invalidTokens.length > 0) {
+        await this.prisma.userDevice.deleteMany({
+          where: {
+            token: {
+              in: pushResults.invalidTokens,
+            },
+          },
+        });
+      }
+
+      return pushResults.attemptedCount;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown Expo push send error';
+      this.logger.warn(`Expo push delivery failed for daily-task sync ${userId}: ${message}`);
+      return 0;
+    }
+  }
 }
 
 type PrismaClientLike = PrismaService | Prisma.TransactionClient | PrismaClient;
@@ -683,6 +756,31 @@ type RetentionTask = {
     projectedDate: Date;
   } | null;
 };
+
+type ExpoPushMessageInput =
+  | {
+      kind: 'standard';
+      title: string;
+      body: string;
+      type: NotificationType;
+      notificationId?: string;
+      routeData?: Record<string, string | string[]>;
+      notificationTag?: string;
+    }
+  | {
+      kind: 'daily_tasks_sync';
+      notificationKind: typeof DAILY_TASKS_NOTIFICATION_KIND;
+      notificationKey: string;
+      displayTitle: string;
+      tasks: Array<{
+        id: string;
+        label: string;
+        occurrenceDate: string;
+      }>;
+      moreCount: number;
+      plannerDate: string;
+      mode: 'upsert' | 'cancel';
+    };
 
 function buildNotificationSummary(
   tasks: RetentionTask[],
@@ -889,18 +987,118 @@ function extractNotificationPushData(metadata: Prisma.JsonValue | null | undefin
   return routeData;
 }
 
+function extractNotificationPushTag(
+  dedupeKey: string | null | undefined,
+  metadata: Prisma.JsonValue | null | undefined,
+) {
+  if (
+    metadata &&
+    typeof metadata === 'object' &&
+    !Array.isArray(metadata) &&
+    'notificationKind' in metadata &&
+    metadata.notificationKind === DAILY_TASKS_NOTIFICATION_KIND &&
+    typeof dedupeKey === 'string'
+  ) {
+    return dedupeKey;
+  }
+
+  return undefined;
+}
+
+function buildPushMessageInput(notification: {
+  id: string;
+  title: string;
+  body: string;
+  type: NotificationType;
+  dedupeKey?: string | null;
+  metadata?: Prisma.JsonValue | null;
+}): ExpoPushMessageInput {
+  const type = resolvePushNotificationType(notification.type, notification.metadata);
+
+  if (type === DAILY_TASKS_NOTIFICATION_KIND) {
+    return buildDailyTasksSyncMessage(notification);
+  }
+
+  return {
+    kind: 'standard',
+    title: notification.title,
+    body: notification.body,
+    type,
+    notificationId: notification.id,
+    routeData: extractNotificationPushData(notification.metadata),
+    notificationTag: extractNotificationPushTag(notification.dedupeKey, notification.metadata),
+  };
+}
+
+function buildDailyTasksSyncMessage(notification: {
+  id: string;
+  dedupeKey?: string | null;
+  metadata?: Prisma.JsonValue | null;
+}): ExpoPushMessageInput {
+  const metadata = notification.metadata && typeof notification.metadata === 'object' && !Array.isArray(notification.metadata)
+    ? notification.metadata as Record<string, unknown>
+    : {};
+  const tasks = Array.isArray(metadata.taskItems)
+    ? metadata.taskItems.flatMap((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return [];
+        }
+
+        const task = item as Record<string, unknown>;
+        const id = typeof task.id === 'string' ? task.id : null;
+        const label = typeof task.label === 'string' ? task.label : null;
+        const occurrenceDate = typeof task.occurrenceDate === 'string' ? task.occurrenceDate : null;
+
+        if (!id || !label || !occurrenceDate) {
+          return [];
+        }
+
+        return [{
+          id,
+          label,
+          occurrenceDate,
+        }];
+      })
+    : [];
+
+  return {
+    kind: 'daily_tasks_sync',
+    notificationKind: DAILY_TASKS_NOTIFICATION_KIND,
+    notificationKey: typeof metadata.notificationKey === 'string'
+      ? metadata.notificationKey
+      : (notification.dedupeKey ?? ''),
+    displayTitle: 'Daily Tasks',
+    tasks,
+    moreCount: typeof metadata.moreCount === 'number' ? metadata.moreCount : 0,
+    plannerDate: typeof metadata.plannerDate === 'string' ? metadata.plannerDate : toDayKey(new Date()),
+    mode: 'upsert',
+  };
+}
+
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 function buildExpoPushMessage(
   token: string,
-  input: {
-    title: string;
-    body: string;
-    type: NotificationType | 'daily_tasks';
-    notificationId?: string;
-    routeData?: Record<string, string | string[]>;
-  },
+  input: ExpoPushMessageInput,
 ) {
+  if (input.kind === 'daily_tasks_sync') {
+    return {
+      to: token,
+      priority: 'high',
+      ttl: 60,
+      _contentAvailable: true,
+      data: {
+        notificationKind: input.notificationKind,
+        notificationKey: input.notificationKey,
+        displayTitle: input.displayTitle,
+        tasks: input.tasks,
+        moreCount: input.moreCount,
+        plannerDate: input.plannerDate,
+        mode: input.mode,
+      },
+    };
+  }
+
   return {
     to: token,
     title: input.title,
@@ -908,13 +1106,26 @@ function buildExpoPushMessage(
     sound: 'default',
     priority: 'high',
     channelId: PLANNER_REMINDERS_CHANNEL_ID,
-    ...(input.type === 'daily_tasks' ? { categoryId: DAILY_TASKS_CATEGORY_ID } : {}),
+    ...(input.notificationTag
+      ? {
+          tag: input.notificationTag,
+          collapseId: input.notificationTag,
+        }
+      : {}),
     data: {
       ...(input.notificationId ? { notificationId: input.notificationId } : {}),
       type: input.type,
       ...(input.routeData ?? {}),
     },
   };
+}
+
+function buildDailyTasksNotificationKey(userId: string, dayKey: string) {
+  return `daily_tasks_${userId}_${dayKey.slice(0, 10)}`;
+}
+
+function buildLegacyDailyTasksNotificationKey(userId: string, dayKey: string) {
+  return `${userId}:daily-tasks:${dayKey}`;
 }
 
 function resolvePushNotificationType(
@@ -926,9 +1137,9 @@ function resolvePushNotificationType(
     typeof metadata === 'object' &&
     !Array.isArray(metadata) &&
     'notificationKind' in metadata &&
-    metadata.notificationKind === 'daily_tasks'
+    metadata.notificationKind === DAILY_TASKS_NOTIFICATION_KIND
   ) {
-    return 'daily_tasks' as const;
+    return DAILY_TASKS_NOTIFICATION_KIND;
   }
 
   return type;

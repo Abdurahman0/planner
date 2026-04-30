@@ -24,6 +24,7 @@ export default defineConfig(({mode}) => {
         'expo-device': path.resolve(__dirname, './src/mocks/expo-device.ts'),
         'expo-secure-store': path.resolve(__dirname, './src/mocks/secure-store.ts'),
         'expo-notifications': path.resolve(__dirname, './src/mocks/expo-notifications.ts'),
+        'expo-task-manager': path.resolve(__dirname, './src/mocks/expo-task-manager.ts'),
         'react-native-edge-to-edge': path.resolve(__dirname, './src/mocks/react-native-edge-to-edge.tsx'),
         'react-native-safe-area-context': path.resolve(__dirname, './src/mocks/safe-area-context.tsx'),
         '@react-native-community/datetimepicker': path.resolve(__dirname, './src/mocks/datetimepicker.tsx'),

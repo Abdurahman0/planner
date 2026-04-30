@@ -2,21 +2,17 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
 import {
-  buildDailyTaskNotificationBody,
-  getIncompleteUnscheduledTasksForDay,
-  NotificationType,
-  Task,
-} from '@packages/shared';
+  applyNativeDailyTaskNotificationPayload,
+  DAILY_TASKS_NOTIFICATION_KIND,
+} from './nativeDailyTaskNotifications';
 
 export const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
 export const PLANNER_NOTIFICATION_ACCENT = '#A855F7';
 export const NOTIFICATION_PERMISSION_MESSAGE = 'Enable notifications to receive planner reminders and streak updates.';
-export const DAILY_TASKS_NOTIFICATION_KIND = 'daily_tasks';
-export const DAILY_TASKS_NOTIFICATION_CATEGORY_ID = 'daily_tasks';
-export const COMPLETE_FIRST_DAILY_TASK_ACTION_ID = 'COMPLETE_FIRST_DAILY_TASK';
 
-let lastDailyTaskNotificationSignature: string | null = null;
+const BACKGROUND_NOTIFICATION_TASK_NAME = 'planner-background-notification-task';
 
 export interface PushRegistrationResult {
   permissionStatus: 'granted' | 'denied' | 'unavailable';
@@ -38,17 +34,48 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function configurePushNotificationsAsync() {
-  await Notifications.setNotificationCategoryAsync(DAILY_TASKS_NOTIFICATION_CATEGORY_ID, [
-    {
-      identifier: COMPLETE_FIRST_DAILY_TASK_ACTION_ID,
-      buttonTitle: '✓ Done',
-      options: {
-        opensAppToForeground: true,
-      },
-    },
-  ]);
+if (TaskManager.isTaskDefined && !TaskManager.isTaskDefined(BACKGROUND_NOTIFICATION_TASK_NAME)) {
+  TaskManager.defineTask<Notifications.NotificationTaskPayload>(
+    BACKGROUND_NOTIFICATION_TASK_NAME,
+    async ({ data, error }) => {
+      if (error) {
+        return;
+      }
 
+      const payload = extractBackgroundNotificationData(data);
+
+      if (!isDailyTaskPayload(payload)) {
+        return;
+      }
+
+      try {
+        await applyNativeDailyTaskNotificationPayload(payload);
+      } catch {
+        // Headless daily-task sync is best-effort.
+      }
+    },
+  );
+}
+
+export async function initializeNotificationRuntimeAsync() {
+  await configurePushNotificationsAsync();
+
+  if (Platform.OS === 'web') {
+    return;
+  }
+
+  try {
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_NOTIFICATION_TASK_NAME);
+
+    if (!isRegistered) {
+      await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK_NAME);
+    }
+  } catch {
+    // Background notification actions are best-effort and must not crash startup.
+  }
+}
+
+export async function configurePushNotificationsAsync() {
   if (Platform.OS !== 'android') {
     return;
   }
@@ -84,7 +111,7 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
     };
   }
 
-  await configurePushNotificationsAsync();
+  await initializeNotificationRuntimeAsync();
 
   const currentPermissions = await Notifications.getPermissionsAsync();
   let finalStatus = currentPermissions.status;
@@ -128,12 +155,14 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
       projectIdPresent,
       tokenCreated,
       ...(tokenCreated ? {} : { registrationError: 'Expo returned an invalid push token.' }),
-      ...(tokenCreated ? {
-      registration: {
-        token: pushToken.data,
-        platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'expo',
-      },
-      } : {}),
+      ...(tokenCreated
+        ? {
+            registration: {
+              token: pushToken.data,
+              platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'expo',
+            },
+          }
+        : {}),
     };
   } catch (error) {
     devLog('Expo push token creation failed', true);
@@ -164,87 +193,6 @@ function resolveExpoProjectId() {
   return processEnv ?? undefined;
 }
 
-export async function syncDailyTaskNotificationAsync(tasks: Task[], now = new Date()) {
-  if (Platform.OS === 'web' || !Device.isDevice) {
-    return;
-  }
-
-  const presentedNotifications = await getPresentedDailyTaskNotificationsAsync();
-  const permissions = await Notifications.getPermissionsAsync();
-
-  if (permissions.status !== 'granted') {
-    await dismissPresentedNotificationsAsync(presentedNotifications);
-    lastDailyTaskNotificationSignature = null;
-    return;
-  }
-
-  const dailyTasks = getIncompleteUnscheduledTasksForDay(tasks, now);
-
-  if (dailyTasks.length === 0) {
-    await dismissPresentedNotificationsAsync(presentedNotifications);
-    lastDailyTaskNotificationSignature = null;
-    return;
-  }
-
-  const body = buildDailyTaskNotificationBody(dailyTasks);
-  const firstTask = dailyTasks[0];
-  const signature = [
-    now.toDateString(),
-    ...dailyTasks.map((task) => `${task.seriesId ?? task.id}:${task.status}:${(task.occurrenceDate ?? task.plannedDate).toISOString()}`),
-  ].join('|');
-
-  if (signature === lastDailyTaskNotificationSignature && presentedNotifications.length > 0) {
-    return;
-  }
-
-  await dismissPresentedNotificationsAsync(presentedNotifications);
-
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Daily tasks',
-      body,
-      sound: 'default',
-      categoryIdentifier: DAILY_TASKS_NOTIFICATION_CATEGORY_ID,
-      data: {
-        type: DAILY_TASKS_NOTIFICATION_KIND,
-        notificationKind: DAILY_TASKS_NOTIFICATION_KIND,
-        taskId: firstTask.id,
-        firstTaskId: firstTask.seriesId ?? firstTask.id,
-        taskIds: dailyTasks.slice(0, 3).map((task) => task.seriesId ?? task.id),
-        occurrenceDate: (firstTask.occurrenceDate ?? firstTask.plannedDate).toISOString(),
-      },
-    },
-    trigger: null,
-  });
-
-  lastDailyTaskNotificationSignature = signature;
-}
-
-async function getPresentedDailyTaskNotificationsAsync() {
-  const presentedNotifications = await Notifications.getPresentedNotificationsAsync();
-
-  return presentedNotifications.filter((notification) => {
-    const data = notification.request.content.data;
-    return Boolean(
-      data &&
-      typeof data === 'object' &&
-      !Array.isArray(data) &&
-      'notificationKind' in data &&
-      data.notificationKind === DAILY_TASKS_NOTIFICATION_KIND,
-    );
-  });
-}
-
-async function dismissPresentedNotificationsAsync(
-  notifications: Array<{ request: { identifier: string } }>,
-) {
-  await Promise.allSettled(
-    notifications.map((notification) =>
-      Notifications.dismissNotificationAsync(notification.request.identifier),
-    ),
-  );
-}
-
 function isExpoPushToken(token: string) {
   return /^(ExponentPushToken|ExpoPushToken)\[[^\]\s]+\]$/.test(token);
 }
@@ -252,12 +200,40 @@ function isExpoPushToken(token: string) {
 export function isDailyTasksNotificationData(data: unknown) {
   return Boolean(
     data &&
-    typeof data === 'object' &&
-    !Array.isArray(data) &&
-    (
-      ('type' in data && data.type === DAILY_TASKS_NOTIFICATION_KIND) ||
-      ('notificationKind' in data && data.notificationKind === DAILY_TASKS_NOTIFICATION_KIND)
-    ),
+      typeof data === 'object' &&
+      !Array.isArray(data) &&
+      (('type' in data && data.type === DAILY_TASKS_NOTIFICATION_KIND) ||
+        ('notificationKind' in data && data.notificationKind === DAILY_TASKS_NOTIFICATION_KIND)),
+  );
+}
+
+function extractBackgroundNotificationData(taskPayload: Notifications.NotificationTaskPayload) {
+  if ('actionIdentifier' in taskPayload) {
+    return null;
+  }
+
+  const dataString = typeof taskPayload.data?.dataString === 'string'
+    ? taskPayload.data.dataString
+    : null;
+
+  if (dataString) {
+    try {
+      return JSON.parse(dataString) as unknown;
+    } catch {
+      return null;
+    }
+  }
+
+  return taskPayload.data ?? null;
+}
+
+function isDailyTaskPayload(data: unknown) {
+  return Boolean(
+    data &&
+      typeof data === 'object' &&
+      !Array.isArray(data) &&
+      'notificationKind' in data &&
+      data.notificationKind === DAILY_TASKS_NOTIFICATION_KIND,
   );
 }
 
