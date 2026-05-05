@@ -1,77 +1,152 @@
 # Product
 
-## Identity
+## Core flow
 
-AI Planner is a planner app, not a chat app.
+The app now follows one simple loop:
 
-AI is used only for:
+1. create a goal or task
+2. place it into a day from Planner
+3. get reminded based on priority
+4. mark work done
+5. progress updates automatically
 
-- initial plan generation
-- explicit replanning
+Planner is the execution surface. Goals define direction. Dashboard summarizes today. Progress is read-only stats. Profile is account only.
 
-AI is not:
+## Page purpose
 
-- a continuous chat surface
-- the source of truth for planner logic
-- the source of truth for deadlines or notifications
+### Dashboard
 
-## Implemented Product Surface
+- zero-thinking today screen
+- one dominant `Next Action`
+- one main CTA: `Plan Today`
+- one secondary action: `View all today tasks`
+- no task lists, analytics, charts, streaks, or competing cards
 
-- auth
-- goals CRUD
-- tasks CRUD except delete
-- direct progress logging through task status updates
-- planner day/week/month views
-- availability / routine blocks
-- recurring tasks and recurring routine blocks
-- standalone tasks without goals
-- Android push notifications
-- backend retention notifications
+### Goals
 
-## Planner Behavior
+- list goals
+- show goal priority clearly
+- show target vs projected date
+- create/edit goals
+- goal detail shows task list and goal progress
+- goal detail does not duplicate the full task-planning flow
 
-- day view is the main scheduling surface
-- scheduled tasks render in the timeline
-- unscheduled tasks render in a separate section
-- tasks may belong to a goal or be standalone
-- recurring tasks and routine blocks support:
-  - daily
-  - weekly
-  - monthly
-  - yearly
+### Planner
 
-## Notification Behavior
+- main planning and execution screen
+- day view first
+- scheduled tasks on timeline
+- unscheduled tasks below timeline
+- recurring blocks and recurring tasks supported
+- one main CTA in day view: `Plan Day`
+- advanced recurrence and task options live under `More options`
 
-Normal notifications:
+### Progress
 
-- reminders
+- simple stats only
+- no planning controls
+- no duplicate CTA
+
+### Profile
+
+- account and settings only
+- no debug/dev panels
+- no raw backend notification feed
+
+## Priority behavior
+
+Priority is now functional.
+
+### Goal priority
+
+- goals use `low`, `medium`, `high`
+- tasks under a goal inherit goal priority unless the task overrides it
+
+### Task priority
+
+- standalone tasks can set their own priority
+- goal-linked tasks can:
+  - inherit from goal
+  - override with low / medium / high
+
+### High priority
+
+- strongest reminder behavior available in the current Expo/Android setup
+- Android channel: `planner-high-priority`
+- stronger sound / vibration
+- reminder copy uses stronger language:
+  - `High priority task now`
+- high priority dominates `Next Action`
+- high-priority unscheduled tasks sort first in the daily-task notification
+- high-priority tasks are visually marked in Planner
+
+### Medium priority
+
+- Android channel: `planner-reminders`
+- normal reminder behavior
+- reminder copy:
+  - `Task time`
+
+### Low priority
+
+- Android channel: `planner-low-priority`
+- softer reminder behavior
+- lower visual emphasis
+- reminder copy:
+  - `Low priority task`
+
+## Android limitation
+
+This is not a true alarm-clock implementation.
+
+Not implemented:
+
+- native `AlarmManager` wakeup alarms
+- full-screen alarm intents
+- guaranteed repeating alarm behavior outside the existing backend sweep / Expo push model
+
+Current high-priority behavior is the strongest safe Expo/EAS-compatible reminder path, not a full alarm app.
+
+## Notifications
+
+### Standard reminders
+
+- scheduled reminders
 - missed-task alerts
 - progress feedback
 - streak rewards
 
-Daily-task reminder:
+### Daily tasks
 
-- Android-only native custom notification
-- one notification per user/day
-- up to 3 task rows
-- empty circle plus title on each row
-- `+N more tasks` when applicable
+- still one Android custom notification per user/day
+- up to 3 tasks shown
+- sorted by effective priority first, then creation time
+- circle tap targets the exact task row
 - body tap opens Planner
-- circle tap targets that exact task row
-- circle tap flips that row into a checked state immediately, then the row disappears after backend-confirmed refresh
-- backend remains the source of truth for completion
 
-Important Android limitation:
+## Next Action engine
 
-- this is a custom Android notification layout, not a perfect inline task widget
-- Android system UI controls spacing and decoration
-- killed-app circle-tap completion may queue until the next authenticated resume
-- true non-dismissible ongoing notification behavior is not claimed
+Dashboard is now driven by one rule:
 
-## Current Limits
+1. take today’s incomplete tasks
+2. sort by effective priority descending
+3. then scheduled time ascending
+4. then `createdAt` ascending
+5. return the first task
 
-- frontend AI entry flow is not implemented
-- payment UI is not implemented
-- drag-and-drop planner interactions are not implemented
-- recurring single-occurrence edit/delete is not implemented
-- Android push still requires final real-device QA
+That result is the single dominant instruction on Dashboard.
+
+Current routing behavior:
+
+- `Start Now` passes task id and date into Planner
+- Planner opens the correct day
+- scheduled tasks scroll near their time block
+- unscheduled tasks scroll into the `Unscheduled Tasks` section
+- focused task receives a temporary subtle highlight
+
+## Current limits
+
+- recurring single-occurrence edit/delete is still not implemented
+- true Android alarm/full-screen wake behavior is not implemented
+- true non-dismissible ongoing notification behavior is not implemented
+- final OEM-specific Android QA is still required

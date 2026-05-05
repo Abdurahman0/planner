@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, TaskSource, TaskStatus, TaskType } from '@prisma/client';
+import { GoalPriority, Prisma, TaskSource, TaskStatus, TaskType } from '@prisma/client';
 import { calculateProjectedDate, expandTasksForRange, RecurrenceLike, RecurrenceType, startOfDay } from '@packages/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -49,6 +49,7 @@ export class TasksService {
         goalId: dto.goalId,
         title: dto.title,
         description: dto.description,
+        priority: dto.priority,
         type: dto.type,
         plannedDate: new Date(dto.plannedDate),
         startTime: dto.startTime,
@@ -64,7 +65,7 @@ export class TasksService {
         recurrenceEndDate: dto.recurrenceEndDate ? new Date(dto.recurrenceEndDate) : null,
       },
       select: this.taskSelect,
-    });
+    }).then((task) => this.serializeTask(task));
   }
 
   async findAll(userId: string, goalId?: string, from?: string, to?: string) {
@@ -83,14 +84,14 @@ export class TasksService {
     });
 
     if (!from || !to) {
-      return tasks;
+      return tasks.map((task) => this.serializeTask(task));
     }
 
-    return expandTasksForRange(tasks, new Date(from), new Date(to));
+    return expandTasksForRange(tasks, new Date(from), new Date(to)).map((task) => this.serializeTask(task));
   }
 
   async findOne(userId: string, taskId: string) {
-    return this.findOwnedTaskOrThrow(userId, taskId);
+    return this.serializeTask(await this.findOwnedTaskOrThrow(userId, taskId));
   }
 
   async update(userId: string, taskId: string, dto: UpdateTaskDto) {
@@ -125,6 +126,10 @@ export class TasksService {
 
     if (dto.description !== undefined) {
       data.description = dto.description;
+    }
+
+    if (dto.priority !== undefined) {
+      data.priority = dto.priority;
     }
 
     if (dto.type !== undefined) {
@@ -171,7 +176,7 @@ export class TasksService {
       where: { id: taskId },
       data,
       select: this.taskSelect,
-    });
+    }).then((task) => this.serializeTask(task));
   }
 
   async updateStatus(userId: string, taskId: string, dto: UpdateTaskStatusDto) {
@@ -248,15 +253,17 @@ export class TasksService {
         : null;
 
       return {
-        task: occurrenceDate
-          ? {
-              ...task,
-              status: dto.status,
-              occurrenceDate,
-              isRecurringInstance: true,
-              seriesId: task.id,
-            }
-          : task,
+        task: this.serializeTask(
+          occurrenceDate
+            ? {
+                ...task,
+                status: dto.status,
+                occurrenceDate,
+                isRecurringInstance: true,
+                seriesId: task.id,
+              }
+            : task,
+        ),
         progressLog,
         projectedDate,
       };
@@ -505,9 +512,10 @@ export class TasksService {
     goalId: true,
     planId: true,
     milestoneId: true,
-    title: true,
-    description: true,
-    status: true,
+      title: true,
+      description: true,
+      priority: true,
+      status: true,
     type: true,
     plannedDate: true,
     startTime: true,
@@ -522,7 +530,7 @@ export class TasksService {
     recurrenceType: true,
     recurrenceDaysOfWeek: true,
     recurrenceEndDate: true,
-    occurrences: {
+      occurrences: {
       select: {
         id: true,
         taskId: true,
@@ -535,9 +543,14 @@ export class TasksService {
         createdAt: true,
         updatedAt: true,
       },
-    },
-    createdAt: true,
-    updatedAt: true,
+      },
+      goal: {
+        select: {
+          priority: true,
+        },
+      },
+      createdAt: true,
+      updatedAt: true,
   } as const;
 
   private readonly taskProgressLogSelect = {
@@ -564,6 +577,23 @@ export class TasksService {
     createdAt: true,
     updatedAt: true,
   } as const;
+
+  private serializeTask<
+    T extends {
+      priority?: GoalPriority | null;
+      goal?: { priority: GoalPriority } | null;
+    },
+  >(task: T) {
+    const effectivePriority = task.priority ?? task.goal?.priority ?? GoalPriority.medium;
+    const { goal, ...rest } = task as T & { goal?: { priority: GoalPriority } | null };
+
+    return {
+      ...rest,
+      priority: task.priority ?? undefined,
+      goalPriority: goal?.priority,
+      effectivePriority,
+    };
+  }
 }
 
 type PrismaClientLike = PrismaService | Prisma.TransactionClient;

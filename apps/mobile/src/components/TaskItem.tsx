@@ -2,14 +2,18 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Task, TaskSource, TaskStatus } from '@packages/shared';
 import { CheckCircle2, Circle, AlertCircle, Clock, Repeat2 } from 'lucide-react-native';
-import { getTaskRecurrenceLabel } from '../lib/planner';
+import { getPriorityColor, getPriorityLabel, getTaskPriority, getTaskRecurrenceLabel } from '../lib/planner';
 
 interface TaskItemProps {
   task: Task;
   onToggle?: () => void;
+  highlighted?: boolean;
 }
 
-export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle }) => {
+export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, highlighted = false }) => {
+  const priority = getTaskPriority(task);
+  const priorityColor = getPriorityColor(priority);
+
   const getIcon = () => {
     switch (task.status) {
       case TaskStatus.DONE:
@@ -25,7 +29,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle }) => {
 
   return (
     <TouchableOpacity 
-      style={[styles.container, task.status === TaskStatus.DONE && styles.completed]}
+      style={[
+        styles.container,
+        task.status === TaskStatus.DONE && styles.completed,
+        highlighted && styles.highlighted,
+      ]}
       onPress={onToggle}
     >
       <View style={styles.iconContainer}>
@@ -35,12 +43,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle }) => {
         <Text style={[styles.title, task.status === TaskStatus.DONE && styles.titleCompleted]}>
           {task.title}
         </Text>
-        {task.recurrenceType && task.recurrenceType !== 'none' ? (
-          <View style={styles.recurrenceBadge}>
-            <Repeat2 size={12} color="#C084FC" />
-            <Text style={styles.recurrenceBadgeText}>{getTaskRecurrenceLabel(task)}</Text>
+        <View style={styles.badgesRow}>
+          <View style={[styles.priorityBadge, { backgroundColor: `${priorityColor}22`, borderColor: `${priorityColor}55` }]}>
+            <Text style={[styles.priorityBadgeText, { color: priorityColor }]}>
+              {getPriorityLabel(priority)}
+            </Text>
           </View>
-        ) : null}
+          {task.recurrenceType && task.recurrenceType !== 'none' ? (
+            <View style={styles.recurrenceBadge}>
+              <Repeat2 size={12} color="#C084FC" />
+              <Text style={styles.recurrenceBadgeText}>{getTaskRecurrenceLabel(task)}</Text>
+            </View>
+          ) : null}
+        </View>
         {task.description && (
           <Text style={styles.description}>{task.description}</Text>
         )}
@@ -88,12 +103,27 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 2,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  priorityBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  priorityBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   recurrenceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     gap: 6,
-    marginTop: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
@@ -118,5 +148,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#A855F7',
     fontWeight: 'bold',
+  },
+  highlighted: {
+    borderColor: '#A855F7',
+    backgroundColor: '#161020',
+    shadowColor: '#A855F7',
+    shadowOpacity: 0.16,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 3,
   },
 });

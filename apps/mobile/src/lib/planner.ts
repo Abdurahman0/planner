@@ -3,7 +3,10 @@ import {
   AvailabilityType,
   expandAvailabilityForRange,
   expandTasksForRange,
+  getPriorityRank,
+  GoalPriority,
   getRecurrenceLabel,
+  resolveTaskPriority,
   Task,
   TaskStatus,
 } from '@packages/shared';
@@ -71,25 +74,41 @@ export function getTimelineHeight(startTime: string, endTime: string) {
 }
 
 export function getTasksForDate(tasks: Task[], date: Date) {
-  return expandTasksForRange(tasks, date, date).filter((task) => isSameDay(task.occurrenceDate ?? task.plannedDate, date));
+  return expandTasksForRange(tasks, date, date)
+    .filter((task) => isSameDay(task.occurrenceDate ?? task.plannedDate, date))
+    .sort(compareTasksByPriorityAndSchedule);
 }
 
 export function getScheduledTasks(tasks: Task[]) {
   return tasks
     .filter((task) => task.startTime && task.endTime)
-    .sort((left, right) => {
-      const timeDiff = parseTimeToMinutes(left.startTime!) - parseTimeToMinutes(right.startTime!);
+    .sort(compareTasksByPriorityAndSchedule);
+}
 
-      if (timeDiff !== 0) {
-        return timeDiff;
+export function getUnscheduledTasks(tasks: Task[]) {
+  return tasks
+    .filter((task) => !task.startTime || !task.endTime)
+    .sort((left, right) => {
+      const priorityDiff = getPriorityRank(resolveTaskPriority(right)) - getPriorityRank(resolveTaskPriority(left));
+
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      const createdDiff = (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
+
+      if (createdDiff !== 0) {
+        return createdDiff;
       }
 
       return left.order - right.order;
     });
 }
 
-export function getUnscheduledTasks(tasks: Task[]) {
-  return tasks.filter((task) => !task.startTime || !task.endTime);
+export function getNextAction(tasks: Task[], date: Date) {
+  return getTasksForDate(tasks, date)
+    .filter((task) => task.status !== TaskStatus.DONE)
+    .sort(compareTasksByPriorityAndSchedule)[0];
 }
 
 export function getAvailabilityForDate(availability: AvailabilitySlot[], date: Date) {
@@ -147,6 +166,34 @@ export function getTaskStatusColor(status: TaskStatus) {
   }
 }
 
+export function getTaskPriority(task: Pick<Task, 'priority' | 'goalPriority' | 'effectivePriority'>) {
+  return (task.effectivePriority ?? resolveTaskPriority(task)) as GoalPriority;
+}
+
+export function getPriorityLabel(priority: GoalPriority) {
+  switch (priority) {
+    case GoalPriority.HIGH:
+      return 'High';
+    case GoalPriority.LOW:
+      return 'Low';
+    case GoalPriority.MEDIUM:
+    default:
+      return 'Medium';
+  }
+}
+
+export function getPriorityColor(priority: GoalPriority) {
+  switch (priority) {
+    case GoalPriority.HIGH:
+      return '#EF4444';
+    case GoalPriority.LOW:
+      return '#10B981';
+    case GoalPriority.MEDIUM:
+    default:
+      return '#F59E0B';
+  }
+}
+
 export function getAvailabilityColor(type: AvailabilityType) {
   switch (type) {
     case AvailabilityType.SLEEP:
@@ -177,4 +224,28 @@ export function getDayScheduleDensity(tasks: Task[]) {
   }, 0);
 
   return Math.min(100, Math.round((scheduledMinutes / ((PLANNER_END_HOUR - PLANNER_START_HOUR) * 60)) * 100));
+}
+
+function compareTasksByPriorityAndSchedule(left: Task, right: Task) {
+  const priorityDiff = getPriorityRank(resolveTaskPriority(right)) - getPriorityRank(resolveTaskPriority(left));
+
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
+  const leftTime = left.startTime ? parseTimeToMinutes(left.startTime) : Number.POSITIVE_INFINITY;
+  const rightTime = right.startTime ? parseTimeToMinutes(right.startTime) : Number.POSITIVE_INFINITY;
+  const timeDiff = leftTime - rightTime;
+
+  if (timeDiff !== 0) {
+    return timeDiff;
+  }
+
+  const createdDiff = (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
+
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+
+  return left.order - right.order;
 }

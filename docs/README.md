@@ -1,100 +1,59 @@
 # AI Planner Docs
 
-## Overview
+## Current product shape
 
-AI Planner is a mobile-first planner with:
+AI Planner is now centered around one simpler flow:
 
-- real auth
-- real goals and tasks APIs
-- planner scheduling and availability
-- recurring tasks / routine blocks
-- deadline projection from real progress
-- backend AI plan generation / replan
-- payment backend
-- notifications / retention backend
+1. create a goal or task
+2. plan it in Planner
+3. receive reminders based on priority
+4. complete tasks
+5. progress updates automatically
 
-## Current state
+## Main surfaces
 
-- backend: functional and deployable
-- database: real and migrated
-- mobile app: backend-connected and buildable
-- planner UX: functional, still under real-device polish
-- launch readiness: not complete
+- Dashboard: today instruction only
+- Goals: goal management and goal progress
+- Planner: main planning and execution surface
+- Progress: read-only stats
+- Profile: account/settings only
 
-## Implemented
+## Important behavior
 
-- Prisma schema and migrations
-- auth / users / goals / tasks / availability
-- recurring planner model
-- standalone task ownership
-- notifications backend with:
-  - device registration
-  - test push
-  - sweep endpoint
-- Expo push token registration
-- Android native custom daily-task notification module
-- Expo/EAS configuration at repo root
+- task priority is now functional
+- goal priority can be inherited by tasks
+- Dashboard is driven by a single `Next Action`
+- Dashboard no longer shows task lists or report sections
+- Dashboard `Start Now` now hands off task focus into Planner day view
+- scheduled reminders use priority-specific Android channels
+- daily unscheduled task notification remains one notification per user/day
+- daily-task ordering now uses priority first, then creation time
 
-## Still unfinished
+## Android reminder limits
 
-- final Android real-device QA
-- frontend AI entry flow
-- frontend billing flow
-- single-occurrence edit/delete for recurring series
-- true non-dismissible Android ongoing task notification
+Implemented:
 
-## Run backend
+- stronger high-priority reminder channel
+- softer low-priority channel
+- native Android custom daily-task notification
 
-```bash
-npm run backend:dev
-```
+Not implemented:
 
-Health check:
+- true alarm-clock wake behavior
+- full-screen intent alarm UI
+- true non-dismissible ongoing notification
 
-```text
-http://localhost:3001/health
-```
+## Build / deploy
 
-## Run mobile
+Backend change in this pass requires:
 
-```bash
-npm install
-npm run mobile:start
-```
+- Render redeploy
 
-## Build Android APK
+Mobile change in this pass requires:
 
-```bash
-npx eas build -p android --profile preview --clear-cache
-```
+- fresh EAS Android build
 
-## Android push requirements
-
-- `EXPO_PUBLIC_API_URL`
-- valid Expo project ID in app config
-- physical Android device for real push validation
-- valid `google-services.json` for `com.aiplanner.mobile`
-- valid EAS FCM V1 credentials
-- deployed backend routes for:
-  - `POST /notifications/devices`
-  - `POST /notifications/test-push`
-  - `POST /notifications/run-sweep`
-
-If Expo push token creation fails with `Default FirebaseApp is not initialized`, the APK was built without correct Firebase client configuration. That is a native build/config issue, not a backend auth issue.
-
-## Daily-task notification note
-
-- visible daily-task reminder is Android-only
-- visible daily-task reminder is rendered by the local Expo module in `modules/daily-task-notifications`
-- backend sends a headless data-only push for daily-task reminder sync
-- only one daily-task notification should exist per user/day
-- up to 3 task rows are shown
-- body tap opens Planner
-- circle tap targets the exact task row
-- circle tap shows an immediate checked-state update for that row while backend completion is being confirmed
-- if JS/auth is unavailable in a killed app, the action may queue until the next authenticated resume
-
-## Quick links
+## See also
 
 - [frontend.md](./frontend.md)
 - [backend.md](./backend.md)

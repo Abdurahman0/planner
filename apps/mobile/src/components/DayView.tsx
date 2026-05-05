@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AvailabilitySlot, Task } from '@packages/shared';
 import { Plus, Repeat2 } from 'lucide-react-native';
 import { TaskItem } from './TaskItem';
@@ -8,7 +8,10 @@ import {
   getAvailabilityForDate,
   getAvailabilityLabel,
   getAvailabilityRecurrenceLabel,
+  getPriorityColor,
+  getPriorityLabel,
   getScheduledTasks,
+  getTaskPriority,
   getTaskRecurrenceLabel,
   getTaskStatusColor,
   getTasksForDate,
@@ -25,6 +28,8 @@ interface DayViewProps {
   selectedDate: Date;
   tasks: Task[];
   availability?: AvailabilitySlot[];
+  focusedTaskId?: string;
+  focusRequestKey?: string;
   onAddTaskAtTime?: (startTime?: string) => void;
   onEditTask?: (task: Task) => void;
   onAddScheduleBlock?: (startTime?: string) => void;
@@ -35,13 +40,18 @@ export const DayView: React.FC<DayViewProps> = ({
   selectedDate,
   tasks,
   availability = [],
+  focusedTaskId,
+  focusRequestKey,
   onAddTaskAtTime,
   onEditTask,
   onAddScheduleBlock,
   onEditScheduleBlock,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
+  const unscheduledSectionYRef = useRef(0);
+  const unscheduledTaskYRef = useRef<Record<string, number>>({});
   const [pressedHour, setPressedHour] = useState<number | null>(null);
+  const [highlightedTaskKey, setHighlightedTaskKey] = useState<string | null>(null);
   const hours = Array.from({ length: PLANNER_END_HOUR - PLANNER_START_HOUR }, (_, index) => PLANNER_START_HOUR + index);
   const dayTasks = getTasksForDate(tasks, selectedDate);
   const scheduledTasks = getScheduledTasks(dayTasks);
@@ -75,6 +85,53 @@ export const DayView: React.FC<DayViewProps> = ({
     return () => clearTimeout(timeoutId);
   }, [defaultScrollHour, selectedDateKey]);
 
+  useEffect(() => {
+    if (!focusedTaskId || !focusRequestKey) {
+      return;
+    }
+
+    const matchedTask = dayTasks.find((task) => matchesFocusedTask(task, focusedTaskId));
+
+    if (!matchedTask) {
+      return;
+    }
+
+    const matchedKey = getTaskFocusKey(matchedTask);
+    setHighlightedTaskKey(matchedKey);
+
+    const scrollToFocusedTask = () => {
+      if (matchedTask.startTime && matchedTask.endTime) {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, getTimelineTopOffset(matchedTask.startTime) - 48),
+          animated: true,
+        });
+        return;
+      }
+
+      const taskY = unscheduledTaskYRef.current[matchedKey];
+      const sectionY = unscheduledSectionYRef.current;
+
+      if (taskY !== undefined) {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, sectionY + taskY - 24),
+          animated: true,
+        });
+      }
+    };
+
+    const scrollTimeout = setTimeout(scrollToFocusedTask, 120);
+    const clearTimeoutId = setTimeout(() => setHighlightedTaskKey((current) => current === matchedKey ? null : current), 2600);
+
+    return () => {
+      clearTimeout(scrollTimeout);
+      clearTimeout(clearTimeoutId);
+    };
+  }, [dayTasks, focusRequestKey, focusedTaskId]);
+
+  const handleUnscheduledTaskLayout = (task: Task, event: LayoutChangeEvent) => {
+    unscheduledTaskYRef.current[getTaskFocusKey(task)] = event.nativeEvent.layout.y;
+  };
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -87,7 +144,7 @@ export const DayView: React.FC<DayViewProps> = ({
           <View>
             <Text style={styles.summaryTitle}>Daily Planner</Text>
             <Text style={styles.summarySubtitle}>
-              Tap any open time slot to add a task fast. Scheduled items stay on the timeline.
+              Use Plan Day for new work, or tap an open slot when you already know the time.
             </Text>
           </View>
           <View style={styles.summaryStats}>
@@ -100,15 +157,6 @@ export const DayView: React.FC<DayViewProps> = ({
               <Text style={styles.summaryStatLabel}>Unscheduled</Text>
             </View>
           </View>
-        </View>
-
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionButton} onPress={() => onAddScheduleBlock?.()}>
-            <Text style={styles.actionButtonText}>Add routine block</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryActionButton} onPress={() => onAddTaskAtTime?.()}>
-            <Text style={styles.primaryActionButtonText}>Quick Add Task</Text>
-          </TouchableOpacity>
         </View>
 
         <View style={styles.timelineCard}>
@@ -194,49 +242,23 @@ export const DayView: React.FC<DayViewProps> = ({
 
             <View pointerEvents="box-none" style={[styles.tasksLayer, { height: timelineHeight }]}>
               {scheduledTasks.map((task) => (
-                <TouchableOpacity
-                  key={task.id}
-                  style={[
-                    styles.scheduledTaskCard,
-                    {
-                      top: getTimelineTopOffset(task.startTime!),
-                      height: getTimelineHeight(task.startTime!, task.endTime!),
-                      borderLeftColor: getTaskStatusColor(task.status),
-                    },
-                  ]}
+                <ScheduledTaskCard
+                  key={getTaskFocusKey(task)}
+                  task={task}
+                  highlighted={highlightedTaskKey === getTaskFocusKey(task)}
                   onPress={() => onEditTask?.(task)}
-                >
-                  <View style={styles.scheduledTaskHeader}>
-                    <Text style={styles.scheduledTaskTime}>
-                      {task.startTime} - {task.endTime}
-                    </Text>
-                    <View style={[styles.taskStatusPill, { backgroundColor: `${getTaskStatusColor(task.status)}22` }]}>
-                      <Text style={[styles.taskStatusText, { color: getTaskStatusColor(task.status) }]}>
-                        {task.status.replace('_', ' ')}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.scheduledTaskTitle} numberOfLines={2}>
-                    {task.title}
-                  </Text>
-                  {task.recurrenceType && task.recurrenceType !== 'none' ? (
-                    <View style={styles.taskRepeatRow}>
-                      <Repeat2 size={12} color="#C084FC" />
-                      <Text style={styles.taskRepeatText}>{getTaskRecurrenceLabel(task)}</Text>
-                    </View>
-                  ) : null}
-                  {task.description ? (
-                    <Text style={styles.scheduledTaskDescription} numberOfLines={2}>
-                      {task.description}
-                    </Text>
-                  ) : null}
-                </TouchableOpacity>
+                />
               ))}
             </View>
           </View>
         </View>
 
-        <View style={styles.unscheduledSection}>
+        <View
+          style={styles.unscheduledSection}
+          onLayout={(event) => {
+            unscheduledSectionYRef.current = event.nativeEvent.layout.y;
+          }}
+        >
           <View style={styles.unscheduledHeader}>
             <Text style={styles.unscheduledTitle}>Unscheduled Tasks</Text>
             <Text style={styles.unscheduledSubtitle}>Keep tasks here until you decide where they belong in the day.</Text>
@@ -248,7 +270,13 @@ export const DayView: React.FC<DayViewProps> = ({
             </View>
           ) : (
             unscheduledTasks.map((task) => (
-              <TaskItem key={task.id} task={task} onToggle={() => onEditTask?.(task)} />
+              <View key={getTaskFocusKey(task)} onLayout={(event) => handleUnscheduledTaskLayout(task, event)}>
+                <TaskItem
+                  task={task}
+                  highlighted={highlightedTaskKey === getTaskFocusKey(task)}
+                  onToggle={() => onEditTask?.(task)}
+                />
+              </View>
             ))
           )}
         </View>
@@ -307,34 +335,6 @@ const styles = StyleSheet.create({
   summaryStatLabel: {
     color: '#808080',
     marginTop: 4,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#111',
-    borderWidth: 1,
-    borderColor: '#222',
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#E5E5E5',
-    fontWeight: '600',
-  },
-  primaryActionButton: {
-    flex: 1,
-    backgroundColor: '#A855F7',
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryActionButtonText: {
-    color: '#fff',
-    fontWeight: '700',
   },
   timelineCard: {
     backgroundColor: '#050505',
@@ -470,6 +470,13 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
+  scheduledTaskCardFocused: {
+    borderColor: '#A855F7',
+    backgroundColor: '#171022',
+    shadowColor: '#A855F7',
+    shadowOpacity: 0.18,
+    elevation: 5,
+  },
   scheduledTaskHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -491,6 +498,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     textTransform: 'capitalize',
+  },
+  taskMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  taskPriorityPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  taskPriorityText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   repeatPill: {
     flexDirection: 'row',
@@ -572,3 +596,69 @@ const styles = StyleSheet.create({
     marginTop: -12,
   },
 });
+
+function ScheduledTaskCard({
+  task,
+  onPress,
+  highlighted = false,
+}: {
+  task: Task;
+  onPress: () => void;
+  highlighted?: boolean;
+}) {
+  const priority = getTaskPriority(task);
+  const priorityColor = getPriorityColor(priority);
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.scheduledTaskCard,
+        highlighted && styles.scheduledTaskCardFocused,
+        {
+          top: getTimelineTopOffset(task.startTime!),
+          height: getTimelineHeight(task.startTime!, task.endTime!),
+          borderLeftColor: priority === 'high' ? priorityColor : getTaskStatusColor(task.status),
+        },
+      ]}
+      onPress={onPress}
+    >
+      <View style={styles.scheduledTaskHeader}>
+        <Text style={styles.scheduledTaskTime}>
+          {task.startTime} - {task.endTime}
+        </Text>
+        <View style={[styles.taskStatusPill, { backgroundColor: `${getTaskStatusColor(task.status)}22` }]}>
+          <Text style={[styles.taskStatusText, { color: getTaskStatusColor(task.status) }]}>
+            {task.status.replace('_', ' ')}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.scheduledTaskTitle} numberOfLines={2}>
+        {task.title}
+      </Text>
+      <View style={styles.taskMetaRow}>
+        <View style={[styles.taskPriorityPill, { backgroundColor: `${priorityColor}22`, borderColor: `${priorityColor}55` }]}>
+          <Text style={[styles.taskPriorityText, { color: priorityColor }]}>{getPriorityLabel(priority)}</Text>
+        </View>
+        {task.recurrenceType && task.recurrenceType !== 'none' ? (
+          <View style={styles.repeatPill}>
+            <Repeat2 size={10} color="#E9D5FF" />
+            <Text style={styles.repeatPillText}>{getTaskRecurrenceLabel(task)}</Text>
+          </View>
+        ) : null}
+      </View>
+      {task.description ? (
+        <Text style={styles.scheduledTaskDescription} numberOfLines={2}>
+          {task.description}
+        </Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
+function matchesFocusedTask(task: Task, focusedTaskId: string) {
+  return task.id === focusedTaskId || task.seriesId === focusedTaskId;
+}
+
+function getTaskFocusKey(task: Task) {
+  return `${task.seriesId ?? task.id}:${(task.occurrenceDate ?? task.plannedDate).toISOString()}`;
+}

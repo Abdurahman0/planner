@@ -1,218 +1,124 @@
 # Backend
 
-## Status
+## Current role
 
-Implemented:
+Backend remains the source of truth for:
 
-- auth
 - users
 - goals
 - tasks
 - availability
-- AI plan generation / replan
-- payments
-- notifications / retention
-
-## Endpoints
-
-### Health
-
-- `GET /health`
-
-### Auth
-
-- `POST /auth/register`
-- `POST /auth/login`
-
-### Users
-
-- `GET /users/me`
-
-### Goals
-
-- `POST /goals`
-- `GET /goals`
-- `GET /goals/:id`
-- `PATCH /goals/:id`
-- `DELETE /goals/:id`
-
-### Tasks
-
-- `POST /tasks`
-- `GET /tasks`
-- `GET /tasks/:id`
-- `PATCH /tasks/:id`
-- `PATCH /tasks/:id/status`
-
-### Availability
-
-- `POST /availability`
-- `GET /availability`
-- `PATCH /availability/:id`
-- `DELETE /availability/:id`
-
-### Notifications
-
-- `GET /notifications`
-- `GET /notifications/summary`
-- `POST /notifications/refresh`
-- `POST /notifications/devices`
-- `POST /notifications/test-push`
-- `POST /notifications/run-sweep`
-- `PATCH /notifications/:id/read`
+- progress logs
+- notifications
+- push device registration
 
 ## Security
 
-- JWT on user-owned routes
-- DTO validation
+- JWT protects user-owned routes
 - no client-controlled `userId`
-- ownership checks on goals, tasks, availability, notifications, and devices
-- passwords stored only as hashes
-- push device registration remains JWT-protected
-- task completion from notification actions still goes through the JWT-protected task status endpoint
+- ownership checks on goals, tasks, notifications, devices, and availability
+- push completion actions still go through authenticated task-status updates
+- no sensitive data is placed into notification payloads beyond task titles and safe routing metadata
 
-## Tasks and Recurrence
+## Priority model
 
-- tasks are directly user-owned
-- tasks may optionally belong to a goal
-- standalone tasks are valid and user-scoped through `Task.userId`
-- recurring task series support:
-  - `none`
-  - `daily`
-  - `weekly`
-  - `monthly`
-  - `yearly`
-- recurring occurrence overrides are stored in `TaskOccurrence`
-- recurrence expansion is bounded to visible/query ranges
-- monthly/yearly recurrence uses calendar-date clamping for end-of-month and leap-year safety
+### Goal
 
-## Availability
+- `Goal.priority` exists and remains required
 
-- recurring routine blocks support:
-  - `none`
-  - `daily`
-  - `weekly`
-  - `monthly`
-  - `yearly`
-- overlap checks remain enforced
-- cross-midnight single-block availability is still not supported
+### Task
 
-## Notifications
+- `Task.priority` now exists and is optional
+- if `Task.priority` is null:
+  - it inherits goal priority when a goal exists
+  - otherwise it falls back to `medium`
 
-### Standard notifications
+Effective priority:
 
-Backend creates notification rows and sends Expo push for:
+- `task.priority ?? goal.priority ?? medium`
 
-- scheduled reminders
-- missed-task alerts
-- progress feedback
-- streak rewards
-- day-planning reminders
+## Task behavior
 
-### Daily-task notification architecture
+- standalone tasks remain directly user-owned through `Task.userId`
+- goal-linked tasks still validate goal ownership
+- recurring tasks still expand by visible/query range
+- recurring occurrence completion still uses `TaskOccurrence`
+- backend responses now include:
+  - `priority`
+  - `goalPriority`
+  - `effectivePriority`
 
-Current Android daily-task reminder path:
+## Notification behavior
 
-- backend remains the source of truth for task state
-- backend still creates one logical daily-task reminder record per user/day
-- backend does **not** send a visible Expo alert for that reminder
-- backend sends a headless data-only Expo push for daily-task notification updates
-- mobile JS receives that background payload and asks the Android local Expo module to show/update one native custom notification
+### Scheduled reminders
 
-Visible reminder rules:
+Scheduled reminders now use effective priority.
 
-- one notification per user/day
-- up to 3 task rows
-- ordering: oldest created incomplete unscheduled tasks first
-- if more remain: `+N more tasks`
+Behavior:
 
-Headless daily-task payload shape:
+- backend selects the current due scheduled task for the user
+- reminder copy changes by effective priority
+- Android channel changes by effective priority
+- high-priority reminders can re-alert while still incomplete through resend cooldown
 
-```json
-{
-  "to": "ExpoPushToken[...]",
-  "_contentAvailable": true,
-  "priority": "high",
-  "ttl": 60,
-  "data": {
-    "notificationKind": "daily_tasks",
-    "notificationKey": "daily_tasks_<userId>_<YYYY-MM-DD>",
-    "displayTitle": "Daily Tasks",
-    "tasks": [
-      { "id": "uuid", "label": "Read book", "occurrenceDate": "2026-04-30T00:00:00.000Z" }
-    ],
-    "moreCount": 2,
-    "plannerDate": "2026-04-30T00:00:00.000Z",
-    "mode": "upsert"
-  }
-}
-```
+Selection order for due work:
 
-Cancel payload:
+1. effective priority descending
+2. scheduled time ascending
+3. `createdAt` ascending
 
-- same `notificationKind`
-- same `notificationKey`
-- `mode: "cancel"`
-- empty `tasks`
+Channels:
 
-### Daily-task completion
+- `planner-high-priority`
+- `planner-reminders`
+- `planner-low-priority`
 
-- circle taps from the native Android notification do not trust local state
-- completion still uses `PATCH /tasks/:id/status`
-- recurring occurrences use `occurrenceDate` when needed
-- the Android notification may show a temporary checked state immediately after the tap, but backend confirmation still determines the final task state
-- if the app process is alive, JS completes the task immediately
-- if the app process is killed and JS/auth is unavailable, the action may queue until the next authenticated resume
+### Missed task alerts
 
-### Dedupe
+- missed-task alerts now use the highest-priority missed task when building copy/channel behavior
 
-- one logical daily-task notification key:
-  - `daily_tasks_${userId}_${YYYY-MM-DD}`
-- unchanged content is not re-pushed on every sweep
-- sweep uses dedupe/cooldown instead of creating unlimited duplicates
+### Daily tasks
 
-### Device registration and push test
+- one logical daily-task notification key per user/day
+- body still shows max 3 tasks
+- ordering is now:
+  - priority descending
+  - createdAt ascending
+- visible daily-task UI is still Android native custom notification, not standard Expo alert
 
-- `POST /notifications/devices` returns:
-  - `status`
-  - `registered`
-- `POST /notifications/test-push` returns:
-  - `deviceCount`
-  - `pushesAttempted`
-  - `sentCount`
-  - `invalidTokenCount`
-- invalid Expo tokens are removed when provider feedback marks them unregistered or malformed
+## Endpoints
+
+Main relevant routes:
+
+- `POST /tasks`
+- `PATCH /tasks/:id`
+- `PATCH /tasks/:id/status`
+- `POST /notifications/devices`
+- `POST /notifications/test-push`
+- `POST /notifications/run-sweep`
 
 ## Deployment
 
-Recommended Render config:
+Render backend must be redeployed after this change because:
 
-- build:
-  - `npm install && npx prisma generate --schema apps/backend/prisma/schema.prisma && npx prisma migrate deploy --schema apps/backend/prisma/schema.prisma`
-- start:
-  - `npm run backend:start`
+- Prisma schema changed
+- task serialization changed
+- notification generation and channel routing changed
 
-Required env:
+Recommended build command:
 
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `JWT_EXPIRES_IN`
-- `GEMINI_API_KEY`
-- `APP_BASE_URL`
-- `INTERNAL_CRON_SECRET`
-- payment provider variables as needed
+```bash
+npm install && npx prisma generate --schema apps/backend/prisma/schema.prisma && npx prisma migrate deploy --schema apps/backend/prisma/schema.prisma
+```
 
-Verification after redeploy:
+Recommended start command:
 
-- `GET /health`
-- `GET /availability` with Bearer token
-- `POST /notifications/devices` with Bearer token
-- `POST /notifications/test-push` with Bearer token
-- `POST /notifications/run-sweep` with `x-internal-cron-secret`
+```bash
+npm run backend:start
+```
 
-## Known Limitations
+## Limitations
 
-- single-occurrence edit/delete is not implemented
-- no true non-dismissible Android ongoing notification
-- closed-app daily-task circle completion is best-effort; it may queue until next authenticated resume
-- push reliability still needs final real-device QA on the target APK/OEMs
+- no true Android alarm/full-screen wake flow
+- current high-priority behavior is stronger reminder routing, not a full native alarm app
+- recurring single-occurrence edit/delete is still future work

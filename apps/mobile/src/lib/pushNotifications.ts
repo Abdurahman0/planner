@@ -8,7 +8,9 @@ import {
   DAILY_TASKS_NOTIFICATION_KIND,
 } from './nativeDailyTaskNotifications';
 
+export const PLANNER_HIGH_PRIORITY_CHANNEL_ID = 'planner-high-priority';
 export const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
+export const PLANNER_LOW_PRIORITY_CHANNEL_ID = 'planner-low-priority';
 export const PLANNER_NOTIFICATION_ACCENT = '#A855F7';
 export const NOTIFICATION_PERMISSION_MESSAGE = 'Enable notifications to receive planner reminders and streak updates.';
 
@@ -80,12 +82,34 @@ export async function configurePushNotificationsAsync() {
     return;
   }
 
+  await Notifications.setNotificationChannelAsync(PLANNER_HIGH_PRIORITY_CHANNEL_ID, {
+    name: 'High priority tasks',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 400, 250, 400, 250, 600],
+    enableVibrate: true,
+    enableLights: true,
+    lightColor: PLANNER_NOTIFICATION_ACCENT,
+    sound: 'default',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+
   await Notifications.setNotificationChannelAsync(PLANNER_REMINDERS_CHANNEL_ID, {
     name: 'Planner reminders',
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 150, 250],
     enableVibrate: true,
     enableLights: true,
+    lightColor: PLANNER_NOTIFICATION_ACCENT,
+    sound: 'default',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  });
+
+  await Notifications.setNotificationChannelAsync(PLANNER_LOW_PRIORITY_CHANNEL_ID, {
+    name: 'Low priority tasks',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: [0, 120],
+    enableVibrate: false,
+    enableLights: false,
     lightColor: PLANNER_NOTIFICATION_ACCENT,
     sound: 'default',
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,

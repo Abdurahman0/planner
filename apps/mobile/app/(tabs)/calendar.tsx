@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { AvailabilitySlot, Goal, GoalStatus, Task } from '@packages/shared';
+import { useLocalSearchParams } from 'expo-router';
+import { AvailabilitySlot, Goal, GoalPriority, GoalStatus, Task } from '@packages/shared';
 import { Sparkles } from 'lucide-react-native';
 import { useStore } from '../../src/store/useStore';
 import { PlannerHeader, PlannerView } from '../../src/components/PlannerHeader';
@@ -14,6 +15,11 @@ import { FloatingTabCta } from '../../src/components/FloatingTabCta';
 import { getSuggestedPlannerStartTime } from '../../src/lib/planner';
 
 export default function CalendarScreen() {
+  const params = useLocalSearchParams<{
+    focusTaskId?: string;
+    focusDate?: string;
+    focusNonce?: string;
+  }>();
   const tasks = useStore((state) => state.tasks);
   const goals = useStore((state) => state.goals);
   const availability = useStore((state) => state.availability);
@@ -34,6 +40,8 @@ export default function CalendarScreen() {
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [prefilledStartTime, setPrefilledStartTime] = useState<string | undefined>(undefined);
+  const [focusedTaskId, setFocusedTaskId] = useState<string | undefined>(undefined);
+  const [focusRequestKey, setFocusRequestKey] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     void Promise.all([fetchGoals(), fetchTasks(), fetchAvailability()]).catch((error) => {
@@ -41,6 +49,23 @@ export default function CalendarScreen() {
       Alert.alert('Planner Load Failed', message);
     });
   }, [fetchAvailability, fetchGoals, fetchTasks]);
+
+  useEffect(() => {
+    if (!params.focusTaskId || !params.focusDate || !params.focusNonce) {
+      return;
+    }
+
+    const focusDate = new Date(params.focusDate);
+
+    if (Number.isNaN(focusDate.getTime())) {
+      return;
+    }
+
+    setSelectedDate(focusDate);
+    setView('day');
+    setFocusedTaskId(params.focusTaskId);
+    setFocusRequestKey(params.focusNonce);
+  }, [params.focusDate, params.focusNonce, params.focusTaskId]);
 
   const activeGoals = useMemo(() => goals.filter((goal) => goal.status !== GoalStatus.ARCHIVED), [goals]);
 
@@ -131,6 +156,7 @@ export default function CalendarScreen() {
     goalId?: string;
     title: string;
     description?: string;
+    priority?: GoalPriority;
     type: Task['type'];
     plannedDate: Date;
     startTime?: string;
@@ -160,6 +186,7 @@ export default function CalendarScreen() {
     input: {
       title?: string;
       description?: string | null;
+      priority?: GoalPriority | null;
       type?: Task['type'];
       plannedDate?: Date;
       startTime?: string | null;
@@ -208,6 +235,8 @@ export default function CalendarScreen() {
             selectedDate={selectedDate}
             tasks={tasks}
             availability={availability}
+            focusedTaskId={focusedTaskId}
+            focusRequestKey={focusRequestKey}
             onAddTaskAtTime={(startTime) => openTaskModal(null, startTime)}
             onEditTask={(task) => openTaskModal(task)}
             onAddScheduleBlock={(startTime) => openScheduleModal(null, startTime)}

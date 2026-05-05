@@ -12,9 +12,10 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Goal, RecurrenceType, Task, TaskType } from '@packages/shared';
+import { Goal, GoalPriority, RecurrenceType, Task, TaskType } from '@packages/shared';
 import { Calendar, Repeat2, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getPriorityColor, getPriorityLabel } from '../lib/planner';
 import { addMinutesToTime } from '../lib/planner';
 
 interface TaskScheduleModalProps {
@@ -28,6 +29,7 @@ interface TaskScheduleModalProps {
     goalId?: string;
     title: string;
     description?: string;
+    priority?: GoalPriority;
     type: TaskType;
     plannedDate: Date;
     startTime?: string;
@@ -42,6 +44,7 @@ interface TaskScheduleModalProps {
   onUpdate: (taskId: string, input: {
     title?: string;
     description?: string | null;
+    priority?: GoalPriority | null;
     type?: TaskType;
     plannedDate?: Date;
     startTime?: string | null;
@@ -75,6 +78,7 @@ const weekdayOptions = [
 ];
 
 const STANDALONE_TASK_GOAL_ID = '__standalone_task__';
+const priorityOptions = [GoalPriority.HIGH, GoalPriority.MEDIUM, GoalPriority.LOW];
 
 export function TaskScheduleModal({
   visible,
@@ -93,6 +97,7 @@ export function TaskScheduleModal({
   const [goalId, setGoalId] = useState<string>(STANDALONE_TASK_GOAL_ID);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<GoalPriority | 'inherit'>(GoalPriority.MEDIUM);
   const [taskType, setTaskType] = useState<TaskType>(TaskType.TIME_BASED);
   const [plannedDate, setPlannedDate] = useState(new Date());
   const [startTime, setStartTime] = useState('');
@@ -117,6 +122,7 @@ export function TaskScheduleModal({
     setGoalId(task?.goalId ?? STANDALONE_TASK_GOAL_ID);
     setTitle(task?.title ?? '');
     setDescription(task?.description ?? '');
+    setPriority(task?.priority ?? (task?.goalId ? 'inherit' : GoalPriority.MEDIUM));
     setTaskType(task?.type ?? TaskType.TIME_BASED);
     setPlannedDate(task?.plannedDate ?? selectedDate);
     setStartTime(task?.startTime ?? initialStartTime ?? '');
@@ -174,10 +180,13 @@ export function TaskScheduleModal({
     : recurrenceEndDate ?? undefined;
 
   const handleSubmit = async () => {
+    const resolvedPriority = priority === 'inherit' ? null : priority;
+
     if (task) {
       await onUpdate(task.seriesId ?? task.id, {
         title: title.trim(),
         description: description.trim() || null,
+        priority: resolvedPriority,
         type: taskType,
         plannedDate,
         startTime: startTime.trim() || null,
@@ -196,6 +205,7 @@ export function TaskScheduleModal({
       goalId: goalId === STANDALONE_TASK_GOAL_ID ? undefined : goalId,
       title: title.trim(),
       description: description.trim() || undefined,
+      priority: resolvedPriority ?? undefined,
       type: taskType,
       plannedDate,
       startTime: startTime.trim() || undefined,
@@ -424,6 +434,49 @@ export function TaskScheduleModal({
                       </View>
                     </View>
                   ) : null}
+
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Priority</Text>
+                    <Text style={styles.helperText}>
+                      High = alarm-like, Medium = normal reminder, Low = soft reminder.
+                    </Text>
+                    <View style={styles.chipsWrap}>
+                      {goalId !== STANDALONE_TASK_GOAL_ID ? (
+                        <TouchableOpacity
+                          style={[styles.optionChip, priority === 'inherit' && styles.optionChipActive]}
+                          onPress={() => setPriority('inherit')}
+                        >
+                          <Text style={[styles.optionChipText, priority === 'inherit' && styles.optionChipTextActive]}>
+                            Inherit from goal
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {priorityOptions.map((option) => {
+                        const color = getPriorityColor(option);
+
+                        return (
+                          <TouchableOpacity
+                            key={option}
+                            style={[
+                              styles.optionChip,
+                              priority === option && styles.priorityChipActive,
+                              priority === option && { borderColor: color, backgroundColor: `${color}22` },
+                            ]}
+                            onPress={() => setPriority(option)}
+                          >
+                            <Text
+                              style={[
+                                styles.optionChipText,
+                                priority === option && { color: '#fff' },
+                              ]}
+                            >
+                              {getPriorityLabel(option)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
 
                   <View style={styles.field}>
                     <View style={styles.recurrenceHeader}>
@@ -693,6 +746,11 @@ const styles = StyleSheet.create({
     color: '#A855F7',
     fontWeight: '600',
   },
+  helperText: {
+    color: '#7C7C7C',
+    fontSize: 12,
+    lineHeight: 18,
+  },
   segmented: {
     flexDirection: 'row',
     backgroundColor: '#111',
@@ -766,6 +824,9 @@ const styles = StyleSheet.create({
   optionChipActive: {
     backgroundColor: '#A855F722',
     borderColor: '#A855F7',
+  },
+  priorityChipActive: {
+    borderWidth: 1,
   },
   optionChipText: {
     color: '#8A8A8A',

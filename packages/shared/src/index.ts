@@ -161,6 +161,9 @@ export interface Task {
   milestoneId?: string;
   title: string;
   description?: string;
+  priority?: GoalPriority;
+  goalPriority?: GoalPriority;
+  effectivePriority?: GoalPriority;
   status: TaskStatus;
   type: TaskType;
   plannedDate: Date;

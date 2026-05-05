@@ -37,6 +37,7 @@ export interface CreateTaskInput {
   goalId?: string;
   title: string;
   description?: string;
+  priority?: GoalPriority;
   type: TaskType;
   plannedDate: Date;
   startTime?: string;
@@ -52,6 +53,7 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   title?: string;
   description?: string | null;
+  priority?: GoalPriority | null;
   type?: TaskType;
   plannedDate?: Date;
   startTime?: string | null;
@@ -143,6 +145,9 @@ interface ApiTask {
   milestoneId?: string | null;
   title: string;
   description?: string | null;
+  priority?: GoalPriority | null;
+  goalPriority?: GoalPriority | null;
+  effectivePriority?: GoalPriority | null;
   status: TaskStatus;
   type: TaskType;
   plannedDate: string;
@@ -339,6 +344,7 @@ export async function createTaskRequest(token: string, input: CreateTaskInput) {
       goalId: input.goalId,
       title: input.title,
       description: input.description,
+      priority: input.priority,
       type: input.type,
       plannedDate: input.plannedDate.toISOString(),
       startTime: input.startTime,
@@ -542,6 +548,9 @@ function normalizeTask(task: ApiTask): Task {
     planId: task.planId ?? undefined,
     milestoneId: task.milestoneId ?? undefined,
     description: task.description ?? undefined,
+    priority: task.priority ?? undefined,
+    goalPriority: task.goalPriority ?? undefined,
+    effectivePriority: task.effectivePriority ?? undefined,
     plannedDate: new Date(task.plannedDate),
     startTime: task.startTime ?? undefined,
     endTime: task.endTime ?? undefined,

@@ -3,56 +3,53 @@
 ## Core
 
 - backend is the source of truth
-- never trust client input
-- do not move planner rules into AI
-- do not expose tokens, secrets, or private payload data
+- do not duplicate planner business rules across random UI surfaces
+- do not add parallel planning flows when Planner already owns the action
+- do not expose tokens, secrets, or raw backend internals
 
-## React Native / Expo
+## Product simplification
 
-- use `react-native-safe-area-context` correctly
-- keep edge-to-edge intentional and safe-area aware
-- keep floating CTAs low without overlapping system navigation
-- keep modals keyboard-safe on real Android devices
-- request notification permission only after authentication
-- Expo push token registration failures must not break startup
-- Expo Android push must use Expo push tokens, not raw FCM tokens
-- do not ship debug panels or raw backend notification feeds in production UI
+- each page must have one clear purpose
+- remove duplicate task-entry flows instead of adding more buttons
+- hide advanced options under `More options`
+- keep Planner as the only real execution/planning surface
 
-## Android daily-task notification
+## Priority
 
-- the visible daily-task reminder is Android-only and native
-- use the local Expo module / `RemoteViews` path for custom row UI
-- do not show a second visible Expo daily-task alert for the same reminder
-- one daily-task notification per user/day
-- max 3 visible task rows
-- each row must target the exact task it represents
-- body tap opens Planner
-- circle tap may show a temporary checked state immediately, but backend confirmation still controls final completion
-- circle tap must not trust local state; completion still goes through authenticated backend APIs
-- if background/killed-app completion cannot run securely, queue the action and process it on the next authenticated resume
-- do not claim true non-dismissible ongoing notification behavior unless it is actually implemented and verified
+- priority must affect behavior, not only color
+- effective priority is:
+  - task override
+  - else goal priority
+  - else medium
+- scheduled reminder behavior must use effective priority
+- unscheduled daily task ordering must use effective priority
 
-## Backend
+## Mobile
 
-- protect user-owned routes with JWT
-- enforce ownership on every user-owned resource
-- do not accept client-controlled `userId`
-- standalone tasks must stay user-scoped through direct task ownership
-- keep push device registration JWT-protected
-- keep cron endpoints protected by server-side secret only
-- deduplicate identical reminder content instead of spamming pushes
-- remove invalid Expo tokens when provider feedback marks them unregistered
+- Dashboard must answer `what should I do now?`
+- Dashboard is for today only, not analytics
+- Dashboard should present one dominant action, not competing lists
+- Goals manages goals, it does not become a second planner
+- Progress is read-only stats
+- Profile is account/settings only
+- do not ship debug panels or raw notification feeds
 
-## Build / Secrets
+## Notifications
 
-- Expo project root is repo root
-- use EAS env vars for APK builds
-- Android push builds must include valid Firebase client config and EAS FCM credentials
-- never commit Firebase service-account private keys
-- never log JWTs or push tokens in production
+- daily-task notification remains one notification per user/day
+- do not create duplicate local + push daily-task surfaces
+- Android high-priority behavior may be stronger, but do not claim full alarm behavior unless implemented natively and verified
 
-## Documentation
+## Security
 
-- update `/docs` after meaningful changes
-- mark implemented behavior vs limitation accurately
-- do not document fallback behavior as if it were verified native capability
+- JWT on user-owned routes
+- no client-controlled `userId`
+- no JWT/push token display in UI
+- no secrets in frontend
+- no sensitive notification payloads
+
+## Docs
+
+- update docs after meaningful behavior changes
+- document limitations honestly
+- do not describe visual-only priority as functional priority

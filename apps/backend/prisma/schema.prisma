@@ -242,6 +242,7 @@ model Task {
   milestone        Milestone?        @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   title            String
   description      String?
+  priority         GoalPriority?
   status           TaskStatus        @default(todo)
   type             TaskType          @default(time_based)
   plannedDate      DateTime

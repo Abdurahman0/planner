@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Goal, GoalType } from '@packages/shared';
 import { Sparkles, Calendar } from 'lucide-react-native';
+import { getPriorityColor, getPriorityLabel } from '../lib/planner';
 
 interface GoalCardProps {
   goal: Goal;
@@ -11,6 +12,8 @@ interface GoalCardProps {
 export const GoalCard: React.FC<GoalCardProps> = ({ goal }) => {
   const isAi = goal.type === GoalType.AI_MANAGED;
   const router = useRouter();
+  const priorityColor = getPriorityColor(goal.priority);
+  const isBehind = goal.projectedDate > goal.targetDate;
 
   return (
     <TouchableOpacity 
@@ -20,7 +23,14 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal }) => {
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>{goal.title}</Text>
-          {isAi && <Sparkles size={16} color="#A855F7" />}
+          <View style={styles.headerBadges}>
+            <View style={[styles.priorityPill, { backgroundColor: `${priorityColor}22`, borderColor: `${priorityColor}55` }]}>
+              <Text style={[styles.priorityPillText, { color: priorityColor }]}>
+                {getPriorityLabel(goal.priority)}
+              </Text>
+            </View>
+            {isAi && <Sparkles size={16} color="#A855F7" />}
+          </View>
         </View>
         
         <View style={styles.footer}>
@@ -32,10 +42,10 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal }) => {
           </View>
           
           <View style={styles.projection}>
-            <Text style={styles.projectionLabel}>Projected:</Text>
+            <Text style={styles.projectionLabel}>{isBehind ? 'Behind' : 'On track'}</Text>
             <Text style={[
               styles.projectionDate,
-              goal.projectedDate > goal.targetDate ? styles.delayed : styles.onTrack
+              isBehind ? styles.delayed : styles.onTrack
             ]}>
               {new Date(goal.projectedDate).toLocaleDateString()}
             </Text>
@@ -62,11 +72,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+  },
+  headerBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
+    flex: 1,
+  },
+  priorityPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  priorityPillText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   footer: {
     flexDirection: 'row',

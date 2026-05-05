@@ -2,43 +2,31 @@
 
 ## Done
 
-- backend foundation
-- auth / goals / tasks / availability APIs
-- payments backend
-- notifications / retention backend
-- planner day/week/month surface
-- recurring task and routine-block model
-- standalone task ownership model
-- Expo/EAS setup
-- Android edge-to-edge and safe-area fixes
-- shared floating CTA system
-- Expo push token registration flow
-- backend push test / sweep endpoints
-- Android native custom daily-task notification module
-- headless daily-task push path
+- backend auth / goals / tasks / availability
+- recurring planner model
+- standalone tasks
+- Android native custom daily-task notification
+- priority now affects real task behavior
+- simplified Dashboard / Planner / Progress / Profile flow
+- Dashboard now uses a single `Next Action` decision path
+- Dashboard now removes all competing lists and acts as a command screen
+- Dashboard `Start Now` now hands off task focus into Planner day view
 
 ## Current
 
-- real-device QA
+- real Android QA for priority channels and reminder behavior
 - Render redeploy validation
-- EAS APK validation
-- Android custom daily-task notification QA across OEMs
-- killed-app queued completion QA
-- recurrence QA across planner views
+- fresh EAS APK validation
 
 ## Next
 
-1. full Android QA on a fresh EAS APK
-2. production backend redeploy verification
-3. AI planning improvement using saved availability
-4. billing UI and payment status UX
-5. single-occurrence edit/delete for recurring series
-6. launch preparation
+1. real-device QA for high / medium / low priority reminder behavior
+2. final verification that `Next Action` feels correct with real user data
+3. single-occurrence edit/delete for recurring tasks
+4. payment UI and AI entry flow
 
-## Not done
+## Future work
 
-- frontend AI entry flow
-- frontend billing flow
-- drag-and-drop planner interactions
-- native cross-midnight block support
-- true non-dismissible Android ongoing task notification
+- true Android alarm/full-screen wake behavior if a native alarm path is required later
+- richer goal editing
+- drag-and-drop scheduling if it becomes necessary

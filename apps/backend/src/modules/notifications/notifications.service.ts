@@ -7,6 +7,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import {
+  GoalPriority,
   NotificationStatus,
   NotificationType,
   Prisma,
@@ -16,7 +17,9 @@ import {
 import {
   buildDailyTaskNotificationBody,
   expandTasksForRange,
+  getPriorityRank,
   getIncompleteUnscheduledTasksForDay,
+  resolveTaskPriority,
   startOfDay,
 } from '@packages/shared';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -25,10 +28,14 @@ import { RegisterDeviceDto } from './dto/register-device.dto';
 const DAILY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const STREAK_MILESTONES = new Set([3, 7, 14, 30, 60, 100]);
 const EXPO_PUSH_API_URL = 'https://exp.host/--/api/v2/push/send';
+const PLANNER_HIGH_PRIORITY_CHANNEL_ID = 'planner-high-priority';
 const PLANNER_REMINDERS_CHANNEL_ID = 'planner-reminders';
+const PLANNER_LOW_PRIORITY_CHANNEL_ID = 'planner-low-priority';
 const DAILY_TASKS_NOTIFICATION_KIND = 'daily_tasks';
 const EXPO_PUSH_MAX_MESSAGES_PER_REQUEST = 100;
 const DAILY_TASKS_RESEND_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+const HIGH_PRIORITY_REMINDER_RESEND_MS = 15 * 60 * 1000;
+const MEDIUM_PRIORITY_REMINDER_RESEND_MS = 60 * 60 * 1000;
 const EMPTY_PUSH_RESULT = {
   attemptedCount: 0,
   deliveredCount: 0,
@@ -77,19 +84,22 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const generated = [];
     let pushesAttempted = 0;
 
-    if (context.todayScheduledTasksCount > 0) {
+    if (context.dueScheduledTask) {
+      const effectivePriority = resolveEffectivePriority(context.dueScheduledTask);
+      const scheduledReminder = buildScheduledReminderCopy(context.dueScheduledTask, effectivePriority);
       const result = await this.createNotification(prismaClient, {
         userId,
         type: NotificationType.reminder,
-        dedupeKey: `${userId}:reminder:${context.dayKey}`,
-        title: 'Time to continue your plan',
-        body: `You have ${context.todayScheduledTasksCount} task${pluralize(context.todayScheduledTasksCount)} scheduled for today.`,
+        dedupeKey: `${userId}:scheduled:${context.dueScheduledTask.seriesId ?? context.dueScheduledTask.id}:${toDayKey(context.dueScheduledTask.occurrenceDate ?? context.dueScheduledTask.plannedDate)}`,
+        title: scheduledReminder.title,
+        body: scheduledReminder.body,
         metadata: {
-          goalId: context.nextScheduledTask?.goalId,
-          taskId: context.nextScheduledTask?.id,
-          todayTotalTasks: context.todayTotalTasks,
-          todayCompletedTasks: context.todayCompletedTasks,
+          goalId: context.dueScheduledTask.goalId,
+          taskId: context.dueScheduledTask.seriesId ?? context.dueScheduledTask.id,
+          occurrenceDate: (context.dueScheduledTask.occurrenceDate ?? context.dueScheduledTask.plannedDate).toISOString(),
+          priority: effectivePriority,
         },
+        resendAfterMs: getReminderResendDelayMs(effectivePriority),
       });
 
       pushesAttempted += result.pushResults.attemptedCount;
@@ -158,17 +168,23 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (context.missedTasksCount > 0) {
+      const missedPriority = context.firstMissedTask
+        ? resolveEffectivePriority(context.firstMissedTask)
+        : GoalPriority.medium;
+      const missedCopy = buildMissedTaskCopy(context.firstMissedTask?.title, missedPriority, context.missedTasksCount);
       const result = await this.createNotification(prismaClient, {
         userId,
         type: NotificationType.missed_task,
         dedupeKey: `${userId}:missed:${context.dayKey}`,
-        title: 'Task missed',
-        body: context.firstMissedTask
-          ? `You missed "${context.firstMissedTask.title}". Your projected date may change.`
-          : `${context.missedTasksCount} missed task${pluralize(context.missedTasksCount)} still need attention.`,
+        title: missedCopy.title,
+        body: missedCopy.body,
         metadata: {
           goalId: context.firstMissedTask?.goalId,
-          taskId: context.firstMissedTask?.id,
+          taskId: context.firstMissedTask ? (context.firstMissedTask.seriesId ?? context.firstMissedTask.id) : undefined,
+          occurrenceDate: context.firstMissedTask
+            ? (context.firstMissedTask.occurrenceDate ?? context.firstMissedTask.plannedDate).toISOString()
+            : undefined,
+          priority: missedPriority,
           missedTasksCount: context.missedTasksCount,
         },
       });
@@ -348,15 +364,16 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const pushResults = await this.dispatchExpoPushMessages(
-      expoTokens.map((token) => ({
-        token,
-        message: {
-          kind: 'standard',
-          title: 'Planner test push',
-          body: 'Push notifications are working on this device.',
-          type: NotificationType.system,
-        },
-      })),
+        expoTokens.map((token) => ({
+          token,
+          message: {
+            kind: 'standard',
+            title: 'Planner test push',
+            body: 'Push notifications are working on this device.',
+            type: NotificationType.system,
+            channelId: PLANNER_REMINDERS_CHANNEL_ID,
+          },
+        })),
     );
 
     if (pushResults.invalidTokens.length > 0) {
@@ -396,6 +413,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         userId: true,
         title: true,
         goalId: true,
+        priority: true,
         status: true,
         type: true,
         plannedDate: true,
@@ -436,15 +454,20 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
             title: true,
             targetDate: true,
             projectedDate: true,
+            priority: true,
           },
         },
       },
     });
+    const normalizedTasks = tasks.map((task) => ({
+      ...task,
+      goalPriority: task.goal?.priority ?? null,
+    }));
     const today = startOfDay(now);
     const rangeStart = new Date(today);
     rangeStart.setDate(rangeStart.getDate() - 30);
-    const expandedTasks = expandTasksForRange(tasks, rangeStart, today) as unknown as RetentionTask[];
-    const unscheduledDailyTasks = getIncompleteUnscheduledTasksForDay(tasks, today) as unknown as RetentionTask[];
+    const expandedTasks = expandTasksForRange(normalizedTasks, rangeStart, today) as unknown as RetentionTask[];
+    const unscheduledDailyTasks = getIncompleteUnscheduledTasksForDay(normalizedTasks, today) as unknown as RetentionTask[];
 
     const unreadCount = await prismaClient.notification.count({
       where: {
@@ -456,7 +479,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const summary = buildNotificationSummary(expandedTasks, unreadCount, now);
 
     return {
-      tasks,
+      tasks: normalizedTasks,
       expandedTasks,
       unreadCount,
       unscheduledDailyTasks,
@@ -736,6 +759,8 @@ type RetentionTask = {
   userId: string;
   title: string;
   goalId?: string | null;
+  priority?: GoalPriority | null;
+  goalPriority?: GoalPriority | null;
   status: TaskStatus;
   plannedDate: Date;
   seriesId?: string;
@@ -745,6 +770,7 @@ type RetentionTask = {
   estimatedMinutes: number | null;
   targetValue: number | null;
   completedValue?: number | null;
+  createdAt?: Date;
   progressLogs: Array<{
     status: TaskStatus;
     occurrenceDate?: Date | null;
@@ -754,6 +780,7 @@ type RetentionTask = {
     title: string;
     targetDate: Date;
     projectedDate: Date;
+    priority: GoalPriority;
   } | null;
 };
 
@@ -763,6 +790,7 @@ type ExpoPushMessageInput =
       title: string;
       body: string;
       type: NotificationType;
+      channelId: string;
       notificationId?: string;
       routeData?: Record<string, string | string[]>;
       notificationTag?: string;
@@ -790,6 +818,9 @@ function buildNotificationSummary(
   const todayKey = toDayKey(now);
   const todayTasks = tasks.filter((task) => toDayKey(task.occurrenceDate ?? task.plannedDate) === todayKey);
   const todayScheduledTasks = todayTasks.filter((task) => Boolean(task.startTime && task.endTime));
+  const dueScheduledTasks = todayScheduledTasks
+    .filter((task) => !isTaskCompleted(task.status) && isScheduledTaskDue(task, now))
+    .sort(compareTasksForReminder);
   const todayCompletedTasks = todayTasks.filter((task) => task.status === TaskStatus.done).length;
   const todayTotalTasks = todayTasks.length;
   const todayScheduledTasksCount = todayScheduledTasks.length;
@@ -798,21 +829,10 @@ function buildNotificationSummary(
   ).length;
   const nextScheduledTask = todayScheduledTasks
     .filter((task) => !isTaskCompleted(task.status))
-    .sort((left, right) => {
-      if (left.startTime && right.startTime) {
-        const timeDiff = left.startTime.localeCompare(right.startTime);
-
-        if (timeDiff !== 0) {
-          return timeDiff;
-        }
-      }
-
-      return (left.occurrenceDate ?? left.plannedDate).getTime()
-        - (right.occurrenceDate ?? right.plannedDate).getTime();
-    })[0];
+    .sort(compareTasksForReminder)[0];
   const firstMissedTask = tasks
     .filter((task) => toDayKey(task.occurrenceDate ?? task.plannedDate) < todayKey && !isTaskCompleted(task.status))
-    .sort((left, right) => (right.occurrenceDate ?? right.plannedDate).getTime() - (left.occurrenceDate ?? left.plannedDate).getTime())[0];
+    .sort(compareMissedTasks)[0];
   const goalStates = new Map<string, { targetDate: Date; projectedDate: Date; title: string }>();
 
   for (const task of tasks) {
@@ -864,6 +884,7 @@ function buildNotificationSummary(
     todayCompletedTasks,
     todayTotalTasks,
     todayScheduledTasksCount,
+    dueScheduledTask: dueScheduledTasks[0],
     missedTasksCount,
     behindGoalsCount,
     aheadGoalsCount,
@@ -919,6 +940,123 @@ function calculateStreak(dayKeys: string[]) {
 
 function isTaskCompleted(status: TaskStatus) {
   return status === TaskStatus.done;
+}
+
+function compareTasksForReminder(left: RetentionTask, right: RetentionTask) {
+  const priorityDiff = getPriorityRank(resolveEffectivePriority(right)) - getPriorityRank(resolveEffectivePriority(left));
+
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
+  if (left.startTime && right.startTime) {
+    const timeDiff = left.startTime.localeCompare(right.startTime);
+
+    if (timeDiff !== 0) {
+      return timeDiff;
+    }
+  }
+
+  const dateDiff = (left.occurrenceDate ?? left.plannedDate).getTime()
+    - (right.occurrenceDate ?? right.plannedDate).getTime();
+
+  if (dateDiff !== 0) {
+    return dateDiff;
+  }
+
+  return (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
+}
+
+function compareMissedTasks(left: RetentionTask, right: RetentionTask) {
+  const priorityDiff = getPriorityRank(resolveEffectivePriority(right)) - getPriorityRank(resolveEffectivePriority(left));
+
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
+  return (right.occurrenceDate ?? right.plannedDate).getTime() - (left.occurrenceDate ?? left.plannedDate).getTime();
+}
+
+function isScheduledTaskDue(task: RetentionTask, now: Date) {
+  if (!task.startTime || !task.endTime) {
+    return false;
+  }
+
+  const taskStart = combineDateAndTime(task.occurrenceDate ?? task.plannedDate, task.startTime);
+  return taskStart.getTime() <= now.getTime();
+}
+
+function combineDateAndTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(':').map((value) => Number.parseInt(value, 10));
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, 0, 0);
+}
+
+function resolveEffectivePriority(task: Pick<RetentionTask, 'priority' | 'goalPriority'>) {
+  return resolveTaskPriority({
+    priority: task.priority ?? undefined,
+    goalPriority: task.goalPriority ?? undefined,
+  }) as GoalPriority;
+}
+
+function getReminderResendDelayMs(priority: GoalPriority) {
+  switch (priority) {
+    case GoalPriority.high:
+      return HIGH_PRIORITY_REMINDER_RESEND_MS;
+    case GoalPriority.medium:
+      return MEDIUM_PRIORITY_REMINDER_RESEND_MS;
+    case GoalPriority.low:
+    default:
+      return 0;
+  }
+}
+
+function buildScheduledReminderCopy(task: RetentionTask, priority: GoalPriority) {
+  switch (priority) {
+    case GoalPriority.high:
+      return {
+        title: 'High priority task now',
+        body: `"${task.title}" needs attention now.`,
+      };
+    case GoalPriority.low:
+      return {
+        title: 'Low priority task',
+        body: `"${task.title}" is ready when you are.`,
+      };
+    case GoalPriority.medium:
+    default:
+      return {
+        title: 'Task time',
+        body: `"${task.title}" is scheduled now.`,
+      };
+  }
+}
+
+function buildMissedTaskCopy(taskTitle: string | undefined, priority: GoalPriority, missedTasksCount: number) {
+  if (taskTitle) {
+    switch (priority) {
+      case GoalPriority.high:
+        return {
+          title: 'High priority task missed',
+          body: `You missed "${taskTitle}". Replan it as soon as possible.`,
+        };
+      case GoalPriority.low:
+        return {
+          title: 'Low priority task missed',
+          body: `You missed "${taskTitle}". Reschedule it when needed.`,
+        };
+      case GoalPriority.medium:
+      default:
+        return {
+          title: 'Task missed',
+          body: `You missed "${taskTitle}".`,
+        };
+    }
+  }
+
+  return {
+    title: priority === GoalPriority.high ? 'High priority tasks missed' : 'Task missed',
+    body: `${missedTasksCount} missed task${pluralize(missedTasksCount)} still need attention.`,
+  };
 }
 
 function toDayKey(date: Date) {
@@ -1024,6 +1162,7 @@ function buildPushMessageInput(notification: {
     title: notification.title,
     body: notification.body,
     type,
+    channelId: resolveNotificationChannelId(notification.type, notification.metadata),
     notificationId: notification.id,
     routeData: extractNotificationPushData(notification.metadata),
     notificationTag: extractNotificationPushTag(notification.dedupeKey, notification.metadata),
@@ -1104,8 +1243,8 @@ function buildExpoPushMessage(
     title: input.title,
     body: input.body,
     sound: 'default',
-    priority: 'high',
-    channelId: PLANNER_REMINDERS_CHANNEL_ID,
+    priority: input.channelId === PLANNER_LOW_PRIORITY_CHANNEL_ID ? 'default' : 'high',
+    channelId: input.channelId,
     ...(input.notificationTag
       ? {
           tag: input.notificationTag,
@@ -1143,6 +1282,45 @@ function resolvePushNotificationType(
   }
 
   return type;
+}
+
+function resolveNotificationChannelId(
+  type: NotificationType,
+  metadata: Prisma.JsonValue | null | undefined,
+) {
+  const priority = extractNotificationPriority(metadata);
+
+  if (type !== NotificationType.reminder && type !== NotificationType.missed_task) {
+    return PLANNER_REMINDERS_CHANNEL_ID;
+  }
+
+  switch (priority) {
+    case GoalPriority.high:
+      return PLANNER_HIGH_PRIORITY_CHANNEL_ID;
+    case GoalPriority.low:
+      return PLANNER_LOW_PRIORITY_CHANNEL_ID;
+    case GoalPriority.medium:
+    default:
+      return PLANNER_REMINDERS_CHANNEL_ID;
+  }
+}
+
+function extractNotificationPriority(metadata: Prisma.JsonValue | null | undefined) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return GoalPriority.medium;
+  }
+
+  const rawPriority = metadata.priority;
+
+  if (
+    rawPriority === GoalPriority.low ||
+    rawPriority === GoalPriority.medium ||
+    rawPriority === GoalPriority.high
+  ) {
+    return rawPriority;
+  }
+
+  return GoalPriority.medium;
 }
 
 async function parseExpoPushResponse(response: Response): Promise<{ data?: unknown[] } | null> {

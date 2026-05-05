@@ -15,7 +15,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { TaskType } from '@prisma/client';
+import { GoalPriority, TaskType } from '@prisma/client';
 import { RecurrenceType } from '@packages/shared';
 
 const TIME_PATTERN = /^(?:([01]\d|2[0-3]):[0-5]\d|24:00)$/;
@@ -36,6 +36,10 @@ export class CreateTaskDto {
   @IsString()
   @MaxLength(1000)
   description?: string;
+
+  @IsOptional()
+  @IsEnum(GoalPriority)
+  priority?: GoalPriority;
 
   @IsEnum(TaskType)
   type!: TaskType;

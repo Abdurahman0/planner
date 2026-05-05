@@ -7,6 +7,7 @@ export enum RecurrenceType {
 }
 
 export type RecurrenceLike = RecurrenceType | `${RecurrenceType}`;
+export type PriorityLike = 'low' | 'medium' | 'high' | undefined | null;
 
 export interface TaskOccurrence {
   id: string;
@@ -26,6 +27,8 @@ export interface RecurringTaskLike {
   goalId?: string;
   title: string;
   description?: string;
+  priority?: PriorityLike;
+  goalPriority?: PriorityLike;
   status: string;
   type: string;
   plannedDate: Date;
@@ -190,6 +193,12 @@ export function getIncompleteUnscheduledTasksForDay<T extends RecurringTaskLike>
   return expandTasksForRange(tasks, date, date)
     .filter((task) => !task.startTime && !task.endTime && task.status !== 'done')
     .sort((left, right) => {
+      const priorityDiff = getPriorityRank(resolveTaskPriority(right)) - getPriorityRank(resolveTaskPriority(left));
+
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
       const createdDiff = (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
 
       if (createdDiff !== 0) {
@@ -222,6 +231,23 @@ export function isSameDay(left: Date, right: Date) {
 
 export function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+export function resolveTaskPriority(task: Pick<RecurringTaskLike, 'priority' | 'goalPriority'>) {
+  return normalizePriority(task.priority) ?? normalizePriority(task.goalPriority) ?? 'medium';
+}
+
+export function getPriorityRank(priority: PriorityLike) {
+  switch (normalizePriority(priority)) {
+    case 'high':
+      return 3;
+    case 'medium':
+      return 2;
+    case 'low':
+      return 1;
+    default:
+      return 2;
+  }
 }
 
 function compareExpandedTasks(left: RecurringTaskLike & RecurringOccurrenceMeta, right: RecurringTaskLike & RecurringOccurrenceMeta) {
@@ -356,4 +382,12 @@ function createClampedDate(year: number, month: number, day: number) {
 
 function normalizeRecurrenceType(recurrenceType?: RecurrenceLike) {
   return (recurrenceType ?? RecurrenceType.NONE) as RecurrenceType;
+}
+
+function normalizePriority(priority: PriorityLike) {
+  if (priority === 'low' || priority === 'medium' || priority === 'high') {
+    return priority;
+  }
+
+  return undefined;
 }

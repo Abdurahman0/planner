@@ -3,8 +3,11 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Task, TaskStatus } from '@packages/shared';
 import { Repeat2 } from 'lucide-react-native';
 import {
+  getPriorityColor,
+  getPriorityLabel,
   getDayScheduleDensity,
   getScheduledTasks,
+  getTaskPriority,
   getTaskRecurrenceLabel,
   getTasksForDate,
   getTaskStatusColor,
@@ -82,6 +85,9 @@ export const WeekView: React.FC<WeekViewProps> = ({ selectedDate, tasks }) => {
                       <Text style={styles.taskMeta}>
                         {task.startTime && task.endTime ? `${task.startTime} - ${task.endTime}` : 'Unscheduled'}
                       </Text>
+                      <View style={styles.taskBadgeRow}>
+                        <PriorityPill task={task} />
+                      </View>
                       {task.recurrenceType && task.recurrenceType !== 'none' ? (
                         <View style={styles.repeatRow}>
                           <Repeat2 size={12} color="#C084FC" />
@@ -105,6 +111,17 @@ function StatusPill({ label, color }: { label: string; color: string }) {
     <View style={[styles.statusPill, { borderColor: `${color}66` }]}>
       <View style={[styles.statusDot, { backgroundColor: color }]} />
       <Text style={styles.statusPillText}>{label}</Text>
+    </View>
+  );
+}
+
+function PriorityPill({ task }: { task: Task }) {
+  const priority = getTaskPriority(task);
+  const color = getPriorityColor(priority);
+
+  return (
+    <View style={[styles.priorityPill, { backgroundColor: `${color}22`, borderColor: `${color}55` }]}>
+      <Text style={[styles.priorityPillText, { color }]}>{getPriorityLabel(priority)}</Text>
     </View>
   );
 }
@@ -232,6 +249,21 @@ const styles = StyleSheet.create({
     color: '#8A8A8A',
     fontSize: 12,
     marginTop: 4,
+  },
+  taskBadgeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  priorityPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  priorityPillText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   repeatRow: {
     flexDirection: 'row',

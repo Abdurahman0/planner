@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Goal, Task, TaskSource, TaskStatus } from '@packages/shared';
-import { getTasksForDate, isSameDay } from '../lib/planner';
+import { getTasksForDate, getTaskPriority, isSameDay } from '../lib/planner';
 
 interface MonthViewProps {
   selectedDate: Date;
@@ -48,6 +48,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ selectedDate, tasks, goals
           const aiTaskCount = dayTasks.filter((task) => task.source === TaskSource.AI).length;
           const manualTaskCount = dayTasks.length - aiTaskCount;
           const recurringTaskCount = dayTasks.filter((task) => task.recurrenceType && task.recurrenceType !== 'none').length;
+          const hasHighPriorityTask = dayTasks.some((task) => getTaskPriority(task) === 'high');
           const goalIds = new Set(dayTasks.map((task) => task.goalId));
           const goalCount = goals.filter((goal) => goalIds.has(goal.id)).length;
           const isToday = isSameDay(date, new Date());
@@ -72,6 +73,7 @@ export const MonthView: React.FC<MonthViewProps> = ({ selectedDate, tasks, goals
                   <View style={styles.indicatorRow}>
                     {aiTaskCount > 0 ? <View style={[styles.indicatorDot, styles.aiDot]} /> : null}
                     {manualTaskCount > 0 ? <View style={[styles.indicatorDot, styles.manualDot]} /> : null}
+                    {hasHighPriorityTask ? <View style={[styles.indicatorDot, styles.highPriorityDot]} /> : null}
                     {recurringTaskCount > 0 ? <View style={[styles.indicatorDot, styles.recurringDot]} /> : null}
                     {completedCount > 0 ? <View style={[styles.indicatorDot, styles.doneDot]} /> : null}
                     {failedCount > 0 ? <View style={[styles.indicatorDot, styles.failedDot]} /> : null}
@@ -163,6 +165,9 @@ const styles = StyleSheet.create({
   },
   manualDot: {
     backgroundColor: '#10B981',
+  },
+  highPriorityDot: {
+    backgroundColor: '#EF4444',
   },
   recurringDot: {
     backgroundColor: '#C084FC',
