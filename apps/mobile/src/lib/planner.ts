@@ -106,9 +106,30 @@ export function getUnscheduledTasks(tasks: Task[]) {
 }
 
 export function getNextAction(tasks: Task[], date: Date) {
-  return getTasksForDate(tasks, date)
-    .filter((task) => task.status !== TaskStatus.DONE)
-    .sort(compareTasksByPriorityAndSchedule)[0];
+  return getNextActionForTime(tasks, date, new Date());
+}
+
+export function getNextActionForTime(tasks: Task[], date: Date, now: Date) {
+  const incompleteTasks = getTasksForDate(tasks, date).filter((task) => task.status !== TaskStatus.DONE);
+  const futureScheduledTasks = incompleteTasks
+    .filter((task) => task.startTime && parseTimeToMinutes(task.startTime) > getCurrentDayMinutes(now))
+    .sort(compareScheduledTasksForNextAction);
+
+  if (futureScheduledTasks.length > 0) {
+    return futureScheduledTasks[0];
+  }
+
+  const unscheduledTasks = incompleteTasks
+    .filter((task) => !task.startTime || !task.endTime)
+    .sort(compareUnscheduledTasksForNextAction);
+
+  if (unscheduledTasks.length > 0) {
+    return unscheduledTasks[0];
+  }
+
+  return incompleteTasks
+    .filter((task) => task.startTime && task.endTime)
+    .sort(compareScheduledTasksForNextAction)[0];
 }
 
 export function getAvailabilityForDate(availability: AvailabilitySlot[], date: Date) {
@@ -248,4 +269,48 @@ function compareTasksByPriorityAndSchedule(left: Task, right: Task) {
   }
 
   return left.order - right.order;
+}
+
+function compareScheduledTasksForNextAction(left: Task, right: Task) {
+  const leftTime = left.startTime ? parseTimeToMinutes(left.startTime) : Number.POSITIVE_INFINITY;
+  const rightTime = right.startTime ? parseTimeToMinutes(right.startTime) : Number.POSITIVE_INFINITY;
+  const timeDiff = leftTime - rightTime;
+
+  if (timeDiff !== 0) {
+    return timeDiff;
+  }
+
+  const priorityDiff = getPriorityRank(resolveTaskPriority(right)) - getPriorityRank(resolveTaskPriority(left));
+
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
+  const createdDiff = (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
+
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+
+  return left.order - right.order;
+}
+
+function compareUnscheduledTasksForNextAction(left: Task, right: Task) {
+  const priorityDiff = getPriorityRank(resolveTaskPriority(right)) - getPriorityRank(resolveTaskPriority(left));
+
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
+  const createdDiff = (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
+
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+
+  return left.order - right.order;
+}
+
+function getCurrentDayMinutes(now: Date) {
+  return now.getHours() * 60 + now.getMinutes();
 }

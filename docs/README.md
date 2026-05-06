@@ -25,6 +25,7 @@ AI Planner is now centered around one simpler flow:
 - Dashboard is driven by a single `Next Action`
 - Dashboard no longer shows task lists or report sections
 - Dashboard `Start Now` now hands off task focus into Planner day view
+- goal-linked `Start Now` now routes into Goal detail review/completion
 - scheduled reminders use priority-specific Android channels
 - daily unscheduled task notification remains one notification per user/day
 - daily-task ordering now uses priority first, then creation time
@@ -45,13 +46,11 @@ Not implemented:
 
 ## Build / deploy
 
-Backend change in this pass requires:
-
-- Render redeploy
-
 Mobile change in this pass requires:
 
 - fresh EAS Android build
+
+Render redeploy is only required when backend task or notification logic changes.
 
 ## See also
 

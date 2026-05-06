@@ -48,33 +48,41 @@ Effective priority:
 
 ### Next Action engine
 
-`getNextAction(tasks)` works like this:
+`getNextAction(tasks, date, now)` works like this:
 
 1. take today’s incomplete tasks
-2. sort by effective priority desc
-3. then scheduled time asc
-4. then `createdAt` asc
-5. return the first task
+2. choose the nearest upcoming scheduled task after the current time
+3. if multiple tasks share that time:
+   - higher priority first
+   - then `createdAt`
+4. if no future scheduled task remains today:
+   - choose the first unscheduled task
+   - order by priority, then `createdAt`
+5. if no unscheduled task exists:
+   - fall back to the remaining incomplete scheduled task list
 
 Planner handoff:
 
-- `Start Now` sends task id + date into Planner route params
+- goal-linked task -> Goal detail
+- standalone task -> Planner route params with task id + date
 - Planner switches to day view
-- scheduled task focus scrolls near the task time block
-- unscheduled task focus scrolls into the unscheduled section
+- scheduled task focus scrolls once near the task time block
+- unscheduled task focus scrolls once into the unscheduled section
 - focused task gets a temporary subtle highlight
+- focus scroll is consumed once per `focusNonce` and does not trap later scrolling
 
 ### Planner day view
 
 - central planning screen
-- scheduled tasks sorted by priority, then time, then creation order
-- unscheduled tasks sorted by effective priority, then creation time
+- scheduled tasks still render on the timeline
+- unscheduled tasks still render below the timeline
+- overlapping scheduled tasks use a simple offset layout instead of direct overlap
 - recurring tasks and recurring blocks expand into the day view
 
 ### Week / month
 
 - week and month still show recurring occurrences
-- month now reflects priority indirectly through task indicators and counts
+- month still reflects priority indirectly through task indicators and counts
 
 ## Recurrence
 

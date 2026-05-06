@@ -13,6 +13,9 @@ interface TaskItemProps {
 export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, highlighted = false }) => {
   const priority = getTaskPriority(task);
   const priorityColor = getPriorityColor(priority);
+  const timeLabel = task.startTime && task.endTime
+    ? `${task.startTime} - ${task.endTime}`
+    : null;
 
   const getIcon = () => {
     switch (task.status) {
@@ -43,6 +46,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, highlighted 
         <Text style={[styles.title, task.status === TaskStatus.DONE && styles.titleCompleted]}>
           {task.title}
         </Text>
+        {timeLabel ? (
+          <Text style={styles.timeText}>{timeLabel}</Text>
+        ) : null}
         <View style={styles.badgesRow}>
           <View style={[styles.priorityBadge, { backgroundColor: `${priorityColor}22`, borderColor: `${priorityColor}55` }]}>
             <Text style={[styles.priorityBadgeText, { color: priorityColor }]}>
@@ -102,6 +108,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     marginTop: 2,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#9A9A9A',
+    marginTop: 4,
+    fontWeight: '600',
   },
   badgesRow: {
     flexDirection: 'row',

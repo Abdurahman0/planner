@@ -10,7 +10,7 @@ The app now follows one simple loop:
 4. mark work done
 5. progress updates automatically
 
-Planner is the execution surface. Goals define direction. Dashboard summarizes today. Progress is read-only stats. Profile is account only.
+Planner is the execution surface. Goals define direction. Dashboard tells the user what to do now. Progress is read-only stats. Profile is account only.
 
 ## Page purpose
 
@@ -76,7 +76,7 @@ Priority is now functional.
 - stronger sound / vibration
 - reminder copy uses stronger language:
   - `High priority task now`
-- high priority dominates `Next Action`
+- high priority only dominates `Next Action` as a tie-breaker for same-time scheduled work and for unscheduled fallback
 - high-priority unscheduled tasks sort first in the daily-task notification
 - high-priority tasks are visually marked in Planner
 
@@ -129,16 +129,22 @@ Current high-priority behavior is the strongest safe Expo/EAS-compatible reminde
 Dashboard is now driven by one rule:
 
 1. take today’s incomplete tasks
-2. sort by effective priority descending
-3. then scheduled time ascending
-4. then `createdAt` ascending
-5. return the first task
+2. choose the nearest upcoming scheduled task after the current time
+3. if multiple tasks share that time:
+   - higher priority first
+   - then `createdAt`
+4. if no future scheduled task remains today:
+   - choose the first unscheduled task
+   - order unscheduled by priority, then `createdAt`
+5. if neither exists:
+   - fall back to remaining incomplete work for today
 
 That result is the single dominant instruction on Dashboard.
 
 Current routing behavior:
 
-- `Start Now` passes task id and date into Planner
+- goal-linked task -> `Start Now` opens Goal detail
+- standalone task -> `Start Now` opens Planner with task focus
 - Planner opens the correct day
 - scheduled tasks scroll near their time block
 - unscheduled tasks scroll into the `Unscheduled Tasks` section

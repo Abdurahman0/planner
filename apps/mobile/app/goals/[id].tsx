@@ -1,21 +1,27 @@
-import React, { useEffect, useMemo } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Calendar, Clock } from 'lucide-react-native';
-import { TaskStatus } from '@packages/shared';
+import { ArrowRight, Calendar, ChevronLeft, Clock } from 'lucide-react-native';
+import { Task, TaskStatus } from '@packages/shared';
 import { useStore } from '../../src/store/useStore';
 import { TaskItem } from '../../src/components/TaskItem';
 import { getPriorityColor, getPriorityLabel } from '../../src/lib/planner';
 
 export default function GoalDetailsScreen() {
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams<{
+    id?: string;
+    focusTaskId?: string;
+    focusDate?: string;
+    focusNonce?: string;
+  }>();
   const router = useRouter();
-  const goalId = Array.isArray(id) ? id[0] : id;
+  const goalId = Array.isArray(params.id) ? params.id[0] : params.id;
   const goals = useStore((state) => state.goals);
   const tasks = useStore((state) => state.tasks);
   const fetchGoal = useStore((state) => state.fetchGoal);
   const fetchTasks = useStore((state) => state.fetchTasks);
   const updateTaskStatus = useStore((state) => state.updateTaskStatus);
+  const [highlightedTaskKey, setHighlightedTaskKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!goalId) {
@@ -28,8 +34,31 @@ export default function GoalDetailsScreen() {
     });
   }, [fetchGoal, fetchTasks, goalId]);
 
+  useEffect(() => {
+    if (!params.focusTaskId || !params.focusNonce) {
+      return;
+    }
+
+    const matchingTask = tasks.find((task) => task.goalId === goalId && (task.id === params.focusTaskId || task.seriesId === params.focusTaskId));
+
+    if (!matchingTask) {
+      return;
+    }
+
+    const key = getTaskFocusKey(matchingTask);
+    setHighlightedTaskKey(key);
+    const timeoutId = setTimeout(() => setHighlightedTaskKey((current) => current === key ? null : current), 2600);
+
+    return () => clearTimeout(timeoutId);
+  }, [goalId, params.focusNonce, params.focusTaskId, tasks]);
+
   const goal = goals.find((item) => item.id === goalId);
-  const goalTasks = useMemo(() => tasks.filter((task) => task.goalId === goalId), [goalId, tasks]);
+  const goalTasks = useMemo(
+    () => tasks
+      .filter((task) => task.goalId === goalId)
+      .sort(compareGoalTasks),
+    [goalId, tasks],
+  );
 
   if (!goal) {
     return null;
@@ -39,17 +68,12 @@ export default function GoalDetailsScreen() {
   const progress = goalTasks.length > 0 ? Math.round((completedTasks / goalTasks.length) * 100) : 0;
   const priorityColor = getPriorityColor(goal.priority);
 
-  const handleTaskDone = async (taskId: string) => {
-    const task = goalTasks.find((item) => item.id === taskId);
-
-    if (!task) {
-      return;
-    }
-
+  const handleTaskDone = async (task: Task) => {
     try {
-      await updateTaskStatus(taskId, {
+      await updateTaskStatus(task.seriesId ?? task.id, {
         status: TaskStatus.DONE,
         completionPercent: 100,
+        occurrenceDate: task.occurrenceDate,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to update task';
@@ -57,78 +81,125 @@ export default function GoalDetailsScreen() {
     }
   };
 
+  const openPlanner = () => {
+    if (!params.focusTaskId || !params.focusDate) {
+      router.push('/(tabs)/calendar');
+      return;
+    }
+
+    router.push({
+      pathname: '/(tabs)/calendar',
+      params: {
+        focusTaskId: params.focusTaskId,
+        focusDate: params.focusDate,
+        focusNonce: `${params.focusTaskId}:${params.focusDate}:${Date.now()}`,
+      },
+    });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft size={24} color="#fff" />
-        </TouchableOpacity>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <ChevronLeft size={22} color="#fff" />
+        </Pressable>
         <Text style={styles.headerTitle}>Goal</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.innerContainer}>
-          <View style={styles.card}>
-            <View style={styles.priorityRow}>
-              <View style={[styles.priorityPill, { backgroundColor: `${priorityColor}22`, borderColor: `${priorityColor}55` }]}>
-                <Text style={[styles.priorityText, { color: priorityColor }]}>
-                  {getPriorityLabel(goal.priority)} priority
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.goalCard}>
+          <View style={styles.goalCardTop}>
+            <View style={[styles.priorityPill, { backgroundColor: `${priorityColor}22`, borderColor: `${priorityColor}55` }]}>
+              <Text style={[styles.priorityPillText, { color: priorityColor }]}>
+                {getPriorityLabel(goal.priority)} priority
+              </Text>
+            </View>
+            <Text style={styles.progressValue}>{progress}%</Text>
+          </View>
+
+          <Text style={styles.goalTitle}>{goal.title}</Text>
+          {goal.description ? <Text style={styles.goalDescription}>{goal.description}</Text> : null}
+
+          <View style={styles.metaStack}>
+            <View style={styles.metaCard}>
+              <Calendar size={16} color="#8A8A8A" />
+              <View>
+                <Text style={styles.metaLabel}>Target date</Text>
+                <Text style={styles.metaValue}>{new Date(goal.targetDate).toLocaleDateString()}</Text>
+              </View>
+            </View>
+            <View style={styles.metaCard}>
+              <Clock size={16} color={goal.projectedDate > goal.targetDate ? '#EF4444' : '#10B981'} />
+              <View>
+                <Text style={styles.metaLabel}>Projected date</Text>
+                <Text style={[styles.metaValue, goal.projectedDate > goal.targetDate && styles.delayedText]}>
+                  {new Date(goal.projectedDate).toLocaleDateString()}
                 </Text>
               </View>
-              <Text style={styles.progressValue}>{progress}%</Text>
-            </View>
-
-            <Text style={styles.title}>{goal.title}</Text>
-            <Text style={styles.description}>{goal.description || 'No description provided.'}</Text>
-
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <Calendar size={16} color="#888" />
-                <View>
-                  <Text style={styles.metaLabel}>Target</Text>
-                  <Text style={styles.metaValue}>{new Date(goal.targetDate).toLocaleDateString()}</Text>
-                </View>
-              </View>
-              <View style={styles.metaItem}>
-                <Clock size={16} color={goal.projectedDate > goal.targetDate ? '#EF4444' : '#10B981'} />
-                <View>
-                  <Text style={styles.metaLabel}>Projected</Text>
-                  <Text style={[styles.metaValue, goal.projectedDate > goal.targetDate && styles.delayedText]}>
-                    {new Date(goal.projectedDate).toLocaleDateString()}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progress}%` }]} />
             </View>
           </View>
 
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Tasks for this goal</Text>
-              <Text style={styles.sectionSubtitle}>Create and schedule new work from Planner.</Text>
-            </View>
-            <TouchableOpacity style={styles.plannerButton} onPress={() => router.push('/(tabs)/calendar')}>
-              <Text style={styles.plannerButtonText}>Open Planner</Text>
-            </TouchableOpacity>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress}%` }]} />
           </View>
+        </View>
+
+        <View style={styles.tasksSection}>
+          <Text style={styles.sectionTitle}>Tasks</Text>
+          <Text style={styles.sectionSubtitle}>Review the work tied to this goal or jump to Planner to schedule it.</Text>
+
+          <Pressable style={styles.plannerButton} onPress={openPlanner}>
+            <Text style={styles.plannerButtonText}>Open Planner</Text>
+            <ArrowRight size={16} color="#C084FC" />
+          </Pressable>
 
           {goalTasks.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No tasks are attached to this goal yet.</Text>
+              <Text style={styles.emptyStateTitle}>No tasks attached yet</Text>
+              <Text style={styles.emptyStateBody}>Open Planner to add work for this goal.</Text>
             </View>
           ) : (
             goalTasks.map((task) => (
-              <TaskItem key={task.id} task={task} onToggle={() => void handleTaskDone(task.id)} />
+              <TaskItem
+                key={getTaskFocusKey(task)}
+                task={task}
+                highlighted={highlightedTaskKey === getTaskFocusKey(task)}
+                onToggle={() => void handleTaskDone(task)}
+              />
             ))
           )}
         </View>
       </ScrollView>
     </View>
   );
+}
+
+function compareGoalTasks(left: Task, right: Task) {
+  const leftDate = (left.occurrenceDate ?? left.plannedDate).getTime();
+  const rightDate = (right.occurrenceDate ?? right.plannedDate).getTime();
+
+  if (leftDate !== rightDate) {
+    return leftDate - rightDate;
+  }
+
+  if (left.startTime && right.startTime && left.startTime !== right.startTime) {
+    return left.startTime.localeCompare(right.startTime);
+  }
+
+  if (left.startTime && !right.startTime) {
+    return -1;
+  }
+
+  if (!left.startTime && right.startTime) {
+    return 1;
+  }
+
+  return (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
+}
+
+function getTaskFocusKey(task: Task) {
+  return `${task.seriesId ?? task.id}:${(task.occurrenceDate ?? task.plannedDate).toISOString()}`;
 }
 
 const styles = StyleSheet.create({
@@ -142,15 +213,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
-  backBtn: {
+  backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: '#111',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#222',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     color: '#fff',
@@ -161,29 +234,23 @@ const styles = StyleSheet.create({
     width: 40,
   },
   content: {
-    flex: 1,
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingBottom: 40,
-  },
-  innerContainer: {
-    width: '100%',
-    maxWidth: 600,
     paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 20,
   },
-  card: {
-    backgroundColor: '#111',
+  goalCard: {
+    backgroundColor: '#101010',
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#222',
-    padding: 22,
+    padding: 20,
+    gap: 16,
   },
-  priorityRow: {
+  goalCardTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    justifyContent: 'space-between',
+    gap: 12,
   },
   priorityPill: {
     borderRadius: 999,
@@ -191,40 +258,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  priorityText: {
+  priorityPillText: {
     fontSize: 12,
     fontWeight: '700',
   },
   progressValue: {
     color: '#A855F7',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
   },
-  title: {
+  goalTitle: {
     color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
+    lineHeight: 32,
   },
-  description: {
-    color: '#8A8A8A',
-    marginTop: 8,
-    lineHeight: 20,
+  goalDescription: {
+    color: '#A3A3A3',
+    lineHeight: 22,
   },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 20,
+  metaStack: {
+    gap: 10,
   },
-  metaItem: {
-    flex: 1,
+  metaCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#0B0B0B',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1D1D1D',
+    borderColor: '#1C1C1C',
     padding: 12,
   },
   metaLabel: {
@@ -245,50 +308,56 @@ const styles = StyleSheet.create({
     backgroundColor: '#1D1D1D',
     borderRadius: 999,
     overflow: 'hidden',
-    marginTop: 18,
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#A855F7',
     borderRadius: 999,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  tasksSection: {
     gap: 12,
-    marginTop: 28,
-    marginBottom: 16,
   },
   sectionTitle: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
   },
   sectionSubtitle: {
-    color: '#777',
-    marginTop: 4,
+    color: '#7F7F7F',
+    lineHeight: 20,
   },
   plannerButton: {
-    borderRadius: 14,
-    backgroundColor: '#A855F722',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#A855F744',
+    backgroundColor: '#A855F722',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    alignSelf: 'stretch',
   },
   plannerButtonText: {
     color: '#C084FC',
     fontWeight: '700',
   },
   emptyState: {
-    backgroundColor: '#111',
+    backgroundColor: '#0E0E0E',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#222',
-    padding: 18,
+    borderColor: '#1D1D1D',
+    padding: 16,
+    gap: 6,
   },
-  emptyStateText: {
-    color: '#8A8A8A',
+  emptyStateTitle: {
+    color: '#E5E5E5',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyStateBody: {
+    color: '#888',
+    lineHeight: 20,
   },
 });

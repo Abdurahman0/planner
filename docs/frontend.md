@@ -40,6 +40,7 @@
   - progress bar
   - linked tasks
   - button to open Planner
+- goal task rows can be completed directly from the page
 - removed:
   - inline duplicate task-creation form
   - extra planning controls from goal detail
@@ -85,18 +86,18 @@ Tasks now support priority behavior in the mobile UI.
 - task cards show priority pills
 - scheduled Planner cards visually highlight high priority
 - Dashboard uses a `getNextAction(tasks)` rule:
-  - effective priority desc
-  - scheduled time asc
-  - `createdAt` asc
-- `Start Now` passes:
-  - `focusTaskId`
-  - `focusDate`
-  - `focusNonce`
-- Planner day view consumes those params and:
+  - nearest upcoming scheduled task after current time
+  - same-time tie break: higher priority, then `createdAt`
+  - unscheduled fallback: priority, then `createdAt`
+- `Start Now` behavior:
+  - goal-linked task -> Goal detail
+  - standalone task -> Planner with focus params
+- Planner day view consumes focus params and:
   - opens the correct day
-  - scrolls near the scheduled block if the task has time
-  - scrolls into `Unscheduled Tasks` if it does not
+  - scrolls once near the scheduled block if the task has time
+  - scrolls once into `Unscheduled Tasks` if it does not
   - applies a temporary highlight to the matched task card
+  - releases scroll control immediately after that one focus pass
 
 Priority explanation shown in task modal:
 

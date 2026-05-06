@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { ArrowRight, CalendarClock, Play, TriangleAlert } from 'lucide-react-native';
 import { useStore } from '../../src/store/useStore';
 import { FLOATING_CTA_CLEARANCE } from '../../src/components/FloatingTabCta';
-import { getNextAction, getPriorityColor, getPriorityLabel, getTaskPriority } from '../../src/lib/planner';
+import { getNextActionForTime, getPriorityColor, getPriorityLabel, getTaskPriority } from '../../src/lib/planner';
 
 export default function Dashboard() {
   const tasks = useStore((state) => state.tasks);
@@ -19,7 +19,7 @@ export default function Dashboard() {
   }, [fetchTasks]);
 
   const today = new Date();
-  const nextAction = getNextAction(tasks, today);
+  const nextAction = getNextActionForTime(tasks, today, new Date());
 
   const openPlanner = () => {
     router.push('/(tabs)/calendar');
@@ -34,12 +34,27 @@ export default function Dashboard() {
     const focusDate = (nextAction.occurrenceDate ?? nextAction.plannedDate).toISOString();
     const focusTaskId = nextAction.seriesId ?? nextAction.id;
 
+    const focusNonce = `${focusTaskId}:${focusDate}:${Date.now()}`;
+
+    if (nextAction.goalId) {
+      router.push({
+        pathname: '/goals/[id]',
+        params: {
+          id: nextAction.goalId,
+          focusTaskId,
+          focusDate,
+          focusNonce,
+        },
+      });
+      return;
+    }
+
     router.push({
       pathname: '/(tabs)/calendar',
       params: {
         focusTaskId,
         focusDate,
-        focusNonce: `${focusTaskId}:${focusDate}:${Date.now()}`,
+        focusNonce,
       },
     });
   };
@@ -55,7 +70,11 @@ export default function Dashboard() {
         </View>
 
         {nextAction ? (
-          <NextActionCard task={nextAction} onStart={openPlannerForTask} />
+          <NextActionCard
+            task={nextAction}
+            actionLabel={nextAction.goalId ? 'Start Now' : 'Start Now'}
+            onStart={openPlannerForTask}
+          />
         ) : (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No task needs your attention right now.</Text>
@@ -79,9 +98,11 @@ export default function Dashboard() {
 
 function NextActionCard({
   task,
+  actionLabel,
   onStart,
 }: {
-  task: ReturnType<typeof getNextAction>;
+  task: ReturnType<typeof getNextActionForTime>;
+  actionLabel: string;
   onStart: () => void;
 }) {
   if (!task) {
@@ -116,7 +137,7 @@ function NextActionCard({
 
       <Pressable style={styles.startButton} onPress={onStart}>
         <Play size={16} color="#fff" />
-        <Text style={styles.startButtonText}>Start Now</Text>
+        <Text style={styles.startButtonText}>{actionLabel}</Text>
       </Pressable>
     </View>
   );

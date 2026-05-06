@@ -23,6 +23,8 @@
   - else medium
 - scheduled reminder behavior must use effective priority
 - unscheduled daily task ordering must use effective priority
+- Dashboard `Next Action` is time-first for scheduled work, not priority-first
+- priority is only a tie-breaker for same-time scheduled work and for unscheduled fallback
 
 ## Mobile
 
@@ -30,6 +32,7 @@
 - Dashboard is for today only, not analytics
 - Dashboard should present one dominant action, not competing lists
 - Goals manages goals, it does not become a second planner
+- Goal detail can review and complete goal-owned tasks, but does not become a planner
 - Progress is read-only stats
 - Profile is account/settings only
 - do not ship debug panels or raw notification feeds

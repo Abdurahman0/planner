@@ -10,6 +10,7 @@ import {
   getAvailabilityRecurrenceLabel,
   getPriorityColor,
   getPriorityLabel,
+  parseTimeToMinutes,
   getScheduledTasks,
   getTaskPriority,
   getTaskRecurrenceLabel,
@@ -48,6 +49,7 @@ export const DayView: React.FC<DayViewProps> = ({
   onEditScheduleBlock,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
+  const consumedFocusRequestKeyRef = useRef<string | null>(null);
   const unscheduledSectionYRef = useRef(0);
   const unscheduledTaskYRef = useRef<Record<string, number>>({});
   const [pressedHour, setPressedHour] = useState<number | null>(null);
@@ -55,6 +57,7 @@ export const DayView: React.FC<DayViewProps> = ({
   const hours = Array.from({ length: PLANNER_END_HOUR - PLANNER_START_HOUR }, (_, index) => PLANNER_START_HOUR + index);
   const dayTasks = getTasksForDate(tasks, selectedDate);
   const scheduledTasks = getScheduledTasks(dayTasks);
+  const scheduledTaskLayouts = useMemo(() => buildScheduledTaskLayouts(scheduledTasks), [scheduledTasks]);
   const unscheduledTasks = getUnscheduledTasks(dayTasks);
   const dayAvailability = getAvailabilityForDate(availability, selectedDate);
   const timelineHeight = (PLANNER_END_HOUR - PLANNER_START_HOUR) * TIMELINE_HOUR_HEIGHT;
@@ -90,6 +93,10 @@ export const DayView: React.FC<DayViewProps> = ({
       return;
     }
 
+    if (consumedFocusRequestKeyRef.current === focusRequestKey) {
+      return;
+    }
+
     const matchedTask = dayTasks.find((task) => matchesFocusedTask(task, focusedTaskId));
 
     if (!matchedTask) {
@@ -97,6 +104,7 @@ export const DayView: React.FC<DayViewProps> = ({
     }
 
     const matchedKey = getTaskFocusKey(matchedTask);
+    consumedFocusRequestKeyRef.current = focusRequestKey;
     setHighlightedTaskKey(matchedKey);
 
     const scrollToFocusedTask = () => {
@@ -245,6 +253,7 @@ export const DayView: React.FC<DayViewProps> = ({
                 <ScheduledTaskCard
                   key={getTaskFocusKey(task)}
                   task={task}
+                  layout={scheduledTaskLayouts[getTaskFocusKey(task)]}
                   highlighted={highlightedTaskKey === getTaskFocusKey(task)}
                   onPress={() => onEditTask?.(task)}
                 />
@@ -460,8 +469,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
     borderRadius: 18,
     borderLeftWidth: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#2A2A2A',
     shadowColor: '#000',
@@ -501,10 +510,10 @@ const styles = StyleSheet.create({
   },
   taskMetaRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     alignItems: 'center',
     gap: 6,
-    marginTop: 6,
+    marginTop: 4,
   },
   taskPriorityPill: {
     borderRadius: 999,
@@ -534,24 +543,8 @@ const styles = StyleSheet.create({
   },
   scheduledTaskTitle: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    marginTop: 6,
-  },
-  taskRepeatRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-  },
-  taskRepeatText: {
-    color: '#C084FC',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  scheduledTaskDescription: {
-    color: '#A3A3A3',
-    fontSize: 12,
     marginTop: 4,
   },
   unscheduledSection: {
@@ -599,15 +592,20 @@ const styles = StyleSheet.create({
 
 function ScheduledTaskCard({
   task,
+  layout,
   onPress,
   highlighted = false,
 }: {
   task: Task;
+  layout?: ScheduledTaskLayout;
   onPress: () => void;
   highlighted?: boolean;
 }) {
   const priority = getTaskPriority(task);
   const priorityColor = getPriorityColor(priority);
+  const topOffset = layout?.top ?? getTimelineTopOffset(task.startTime!);
+  const cardHeight = layout?.height ?? getTimelineHeight(task.startTime!, task.endTime!);
+  const overlapOffset = layout?.overlapOffset ?? 0;
 
   return (
     <TouchableOpacity
@@ -615,8 +613,10 @@ function ScheduledTaskCard({
         styles.scheduledTaskCard,
         highlighted && styles.scheduledTaskCardFocused,
         {
-          top: getTimelineTopOffset(task.startTime!),
-          height: getTimelineHeight(task.startTime!, task.endTime!),
+          top: topOffset,
+          height: cardHeight,
+          left: overlapOffset,
+          right: 0,
           borderLeftColor: priority === 'high' ? priorityColor : getTaskStatusColor(task.status),
         },
       ]}
@@ -632,7 +632,7 @@ function ScheduledTaskCard({
           </Text>
         </View>
       </View>
-      <Text style={styles.scheduledTaskTitle} numberOfLines={2}>
+      <Text style={styles.scheduledTaskTitle} numberOfLines={1}>
         {task.title}
       </Text>
       <View style={styles.taskMetaRow}>
@@ -646,13 +646,54 @@ function ScheduledTaskCard({
           </View>
         ) : null}
       </View>
-      {task.description ? (
-        <Text style={styles.scheduledTaskDescription} numberOfLines={2}>
-          {task.description}
-        </Text>
-      ) : null}
     </TouchableOpacity>
   );
+}
+
+type ScheduledTaskLayout = {
+  top: number;
+  height: number;
+  overlapOffset: number;
+};
+
+function buildScheduledTaskLayouts(tasks: Task[]) {
+  const layouts: Record<string, ScheduledTaskLayout> = {};
+  const activeTasks: Array<{ endMinutes: number; overlapOffset: number }> = [];
+
+  for (const task of tasks) {
+    if (!task.startTime || !task.endTime) {
+      continue;
+    }
+
+    const startMinutes = parseTimeToMinutes(task.startTime);
+    const endMinutes = parseTimeToMinutes(task.endTime);
+
+    for (let index = activeTasks.length - 1; index >= 0; index -= 1) {
+      if (activeTasks[index].endMinutes <= startMinutes) {
+        activeTasks.splice(index, 1);
+      }
+    }
+
+    const occupiedOffsets = new Set(activeTasks.map((item) => item.overlapOffset));
+    let overlapOffset = 0;
+
+    while (occupiedOffsets.has(overlapOffset)) {
+      overlapOffset += 12;
+    }
+
+    activeTasks.push({
+      endMinutes,
+      overlapOffset,
+    });
+
+    layouts[getTaskFocusKey(task)] = {
+      top: getTimelineTopOffset(task.startTime) + 2,
+      height: Math.max(54, getTimelineHeight(task.startTime, task.endTime) - 4),
+      overlapOffset,
+    };
+  }
+
+  return layouts;
 }
 
 function matchesFocusedTask(task: Task, focusedTaskId: string) {

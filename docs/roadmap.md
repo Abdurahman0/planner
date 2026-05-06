@@ -11,6 +11,7 @@
 - Dashboard now uses a single `Next Action` decision path
 - Dashboard now removes all competing lists and acts as a command screen
 - Dashboard `Start Now` now hands off task focus into Planner day view
+- Dashboard `Start Now` now routes goal tasks into Goal detail review/completion
 
 ## Current
 
@@ -21,7 +22,7 @@
 ## Next
 
 1. real-device QA for high / medium / low priority reminder behavior
-2. final verification that `Next Action` feels correct with real user data
+2. final verification that time-first `Next Action` feels correct with real user data
 3. single-occurrence edit/delete for recurring tasks
 4. payment UI and AI entry flow
 
