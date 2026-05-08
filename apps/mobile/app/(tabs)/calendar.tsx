@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { AvailabilitySlot, Goal, GoalPriority, GoalStatus, Task } from '@packages/shared';
+import { AvailabilitySlot, Goal, GoalPriority, GoalStatus, Task, TaskStatus } from '@packages/shared';
 import { Sparkles } from 'lucide-react-native';
 import { useStore } from '../../src/store/useStore';
 import { PlannerHeader, PlannerView } from '../../src/components/PlannerHeader';
@@ -18,6 +18,7 @@ export default function CalendarScreen() {
   const params = useLocalSearchParams<{
     focusTaskId?: string;
     focusDate?: string;
+    focusTime?: string;
     focusNonce?: string;
   }>();
   const tasks = useStore((state) => state.tasks);
@@ -28,6 +29,7 @@ export default function CalendarScreen() {
   const fetchTasks = useStore((state) => state.fetchTasks);
   const createTask = useStore((state) => state.createTask);
   const updateTask = useStore((state) => state.updateTask);
+  const updateTaskStatus = useStore((state) => state.updateTaskStatus);
   const fetchAvailability = useStore((state) => state.fetchAvailability);
   const createAvailability = useStore((state) => state.createAvailability);
   const updateAvailability = useStore((state) => state.updateAvailability);
@@ -41,6 +43,7 @@ export default function CalendarScreen() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [prefilledStartTime, setPrefilledStartTime] = useState<string | undefined>(undefined);
   const [focusedTaskId, setFocusedTaskId] = useState<string | undefined>(undefined);
+  const [focusedTime, setFocusedTime] = useState<string | undefined>(undefined);
   const [focusRequestKey, setFocusRequestKey] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function CalendarScreen() {
   }, [fetchAvailability, fetchGoals, fetchTasks]);
 
   useEffect(() => {
-    if (!params.focusTaskId || !params.focusDate || !params.focusNonce) {
+    if (!params.focusDate || !params.focusNonce) {
       return;
     }
 
@@ -64,8 +67,9 @@ export default function CalendarScreen() {
     setSelectedDate(focusDate);
     setView('day');
     setFocusedTaskId(params.focusTaskId);
+    setFocusedTime(params.focusTime);
     setFocusRequestKey(params.focusNonce);
-  }, [params.focusDate, params.focusNonce, params.focusTaskId]);
+  }, [params.focusDate, params.focusNonce, params.focusTaskId, params.focusTime]);
 
   const activeGoals = useMemo(() => goals.filter((goal) => goal.status !== GoalStatus.ARCHIVED), [goals]);
 
@@ -133,7 +137,7 @@ export default function CalendarScreen() {
 
       closeScheduleModal();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to save schedule block';
+      const message = error instanceof Error ? error.message : 'Unable to save routine block';
       Alert.alert('Save Failed', message);
     }
   };
@@ -147,7 +151,7 @@ export default function CalendarScreen() {
       await deleteAvailability(selectedSlot.seriesId ?? selectedSlot.id);
       closeScheduleModal();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to delete schedule block';
+      const message = error instanceof Error ? error.message : 'Unable to delete routine block';
       Alert.alert('Delete Failed', message);
     }
   };
@@ -212,6 +216,19 @@ export default function CalendarScreen() {
     }
   };
 
+  const handleCompleteTask = async (task: Task) => {
+    try {
+      await updateTaskStatus(task.seriesId ?? task.id, {
+        status: TaskStatus.DONE,
+        completionPercent: 100,
+        occurrenceDate: task.occurrenceDate,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update task';
+      Alert.alert('Update Failed', message);
+    }
+  };
+
   const renderView = () => {
     switch (view) {
       case 'month':
@@ -236,9 +253,10 @@ export default function CalendarScreen() {
             tasks={tasks}
             availability={availability}
             focusedTaskId={focusedTaskId}
+            focusedTime={focusedTime}
             focusRequestKey={focusRequestKey}
-            onAddTaskAtTime={(startTime) => openTaskModal(null, startTime)}
             onEditTask={(task) => openTaskModal(task)}
+            onToggleTaskComplete={handleCompleteTask}
             onAddScheduleBlock={(startTime) => openScheduleModal(null, startTime)}
             onEditScheduleBlock={(slot) => openScheduleModal(slot)}
           />

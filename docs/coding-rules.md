@@ -39,6 +39,10 @@
 - do not ship debug panels or raw notification feeds
 - planner timeline chips must stay inside cards and wrap cleanly on small task blocks
 - auth session persistence must clear only on explicit logout or confirmed invalid session
+- keep tasks and routine blocks separate:
+  - tasks are completed
+  - routine blocks shape time
+  - empty timeline taps default to routine blocks, not tasks
 
 ## Notifications
 
@@ -54,6 +58,7 @@
 - no JWT storage outside approved session storage (`SecureStore` on native)
 - no secrets in frontend
 - no sensitive notification payloads
+- standalone task ownership must rely on `Task.userId`, not on goal linkage
 
 ## Docs
 

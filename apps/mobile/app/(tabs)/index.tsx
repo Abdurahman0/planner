@@ -4,22 +4,40 @@ import { useRouter } from 'expo-router';
 import { ArrowRight, CalendarClock, Play, TriangleAlert } from 'lucide-react-native';
 import { useStore } from '../../src/store/useStore';
 import { FLOATING_CTA_CLEARANCE } from '../../src/components/FloatingTabCta';
-import { getNextActionForTime, getPriorityColor, getPriorityLabel, getTaskPriority } from '../../src/lib/planner';
+import {
+  getAvailabilityColor,
+  getAvailabilityLabel,
+  getNextActionForTime,
+  getNextPlanBlockForTime,
+  getPriorityColor,
+  getPriorityLabel,
+  getTaskPriority,
+  parseTimeToMinutes,
+} from '../../src/lib/planner';
 
 export default function Dashboard() {
   const tasks = useStore((state) => state.tasks);
+  const availability = useStore((state) => state.availability);
   const fetchTasks = useStore((state) => state.fetchTasks);
+  const fetchAvailability = useStore((state) => state.fetchAvailability);
   const router = useRouter();
 
   useEffect(() => {
-    void fetchTasks().catch((error) => {
+    void Promise.all([fetchTasks(), fetchAvailability()]).catch((error) => {
       const message = error instanceof Error ? error.message : 'Unable to load dashboard';
       Alert.alert('Load Failed', message);
     });
-  }, [fetchTasks]);
+  }, [fetchAvailability, fetchTasks]);
 
   const today = new Date();
   const nextAction = getNextActionForTime(tasks, today, new Date());
+  const nextPlanBlock = getNextPlanBlockForTime(availability, today, new Date());
+  const shouldShowPlanBlock =
+    Boolean(nextPlanBlock) &&
+    (!nextAction || (
+      Boolean(nextAction.startTime) &&
+      parseTimeToMinutes(nextPlanBlock!.startTime) < parseTimeToMinutes(nextAction.startTime!)
+    ));
 
   const openPlanner = () => {
     router.push('/(tabs)/calendar');
@@ -59,6 +77,22 @@ export default function Dashboard() {
     });
   };
 
+  const openPlannerForPlanBlock = () => {
+    if (!nextPlanBlock) {
+      openPlanner();
+      return;
+    }
+
+    router.push({
+      pathname: '/(tabs)/calendar',
+      params: {
+        focusDate: selectedDateIso(today),
+        focusTime: nextPlanBlock.startTime,
+        focusNonce: `plan-block:${nextPlanBlock.id}:${selectedDateIso(today)}:${Date.now()}`,
+      },
+    });
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: FLOATING_CTA_CLEARANCE }]}>
@@ -69,10 +103,12 @@ export default function Dashboard() {
           </Text>
         </View>
 
-        {nextAction ? (
+        {shouldShowPlanBlock && nextPlanBlock ? (
+          <PlanBlockCard slot={nextPlanBlock} onViewPlan={openPlannerForPlanBlock} />
+        ) : nextAction ? (
           <NextActionCard
             task={nextAction}
-            actionLabel={nextAction.goalId ? 'Start Now' : 'Start Now'}
+            actionLabel="Start Now"
             onStart={openPlannerForTask}
           />
         ) : (
@@ -92,6 +128,40 @@ export default function Dashboard() {
           <ArrowRight size={16} color="#A3A3A3" />
         </Pressable>
       </ScrollView>
+    </View>
+  );
+}
+
+function PlanBlockCard({
+  slot,
+  onViewPlan,
+}: {
+  slot: ReturnType<typeof getNextPlanBlockForTime>;
+  onViewPlan: () => void;
+}) {
+  if (!slot) {
+    return null;
+  }
+
+  const accentColor = getAvailabilityColor(slot.type);
+
+  return (
+    <View style={[styles.nextActionCard, { borderColor: `${accentColor}44`, backgroundColor: '#0E0E0E' }]}>
+      <View style={styles.cardTopRow}>
+        <View style={[styles.priorityPill, { backgroundColor: `${accentColor}22`, borderColor: `${accentColor}55` }]}>
+          <Text style={[styles.priorityText, { color: accentColor }]}>Routine block</Text>
+        </View>
+        <Text style={styles.cardHint}>Next plan block</Text>
+      </View>
+
+      <Text style={styles.taskTitle}>{getAvailabilityLabel(slot)}</Text>
+      <Text style={styles.taskReason}>Routine blocks are time plans you do not mark done.</Text>
+      <Text style={styles.taskTime}>{`${slot.startTime} - ${slot.endTime}`}</Text>
+
+      <Pressable style={styles.startButton} onPress={onViewPlan}>
+        <Play size={16} color="#fff" />
+        <Text style={styles.startButtonText}>View Plan</Text>
+      </Pressable>
     </View>
   );
 }
@@ -141,6 +211,10 @@ function NextActionCard({
       </Pressable>
     </View>
   );
+}
+
+function selectedDateIso(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString();
 }
 
 const styles = StyleSheet.create({

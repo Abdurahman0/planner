@@ -12,6 +12,23 @@ The app now follows one simple loop:
 
 Planner is the execution surface. Goals define direction. Dashboard tells the user what to do now. Progress is read-only stats. Profile is account only.
 
+## Task vs routine block
+
+### Task
+
+- something the user completes
+- can be goal-linked or standalone
+- has a done/check action
+- appears in progress analytics
+- standalone task ownership is still enforced by `Task.userId`
+
+### Routine block
+
+- something the user places into time
+- not something the user marks done
+- used for daily structure like eating, study, sleep, work, gym
+- backed by the existing availability model, but shown in the UI as a routine block
+
 ## Page purpose
 
 ### Dashboard
@@ -39,6 +56,7 @@ Planner is the execution surface. Goals define direction. Dashboard tells the us
 - unscheduled tasks below timeline
 - recurring blocks and recurring tasks supported
 - one main CTA in day view: `Plan Day`
+- tapping an empty timeline slot creates a routine block by default
 - advanced recurrence and task options live under `More options`
 
 ### Progress
@@ -127,6 +145,13 @@ Current high-priority behavior is the strongest safe Expo/EAS-compatible reminde
 - sorted by effective priority first, then creation time
 - circle tap targets the exact task row
 - body tap opens Planner
+
+## Dashboard behavior
+
+- Dashboard `Next Action` stays task-based when there is real work to complete
+- if the next upcoming item is only a routine block, Dashboard shows that block as planning context
+- routine block CTA is `View Plan`
+- real task CTA is `Start Now`
 
 ## Next Action engine
 

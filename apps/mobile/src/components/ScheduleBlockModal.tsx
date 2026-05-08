@@ -158,9 +158,9 @@ export function ScheduleBlockModal({
           <View style={styles.sheet}>
             <View style={styles.header}>
               <View>
-                <Text style={styles.title}>{slot ? 'Edit Schedule Block' : 'Add Schedule Block'}</Text>
+                <Text style={styles.title}>{slot ? 'Edit Routine Block' : 'Add Routine Block'}</Text>
                 <Text style={styles.subtitle}>
-                  {selectedDate.toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  {selectedDate.toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' })} - Routine blocks are time plans you do not mark done.
                 </Text>
               </View>
               <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -322,7 +322,7 @@ export function ScheduleBlockModal({
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity style={styles.saveButton} onPress={() => void handleSave()} disabled={isLoading}>
-                <Text style={styles.saveButtonText}>{isLoading ? 'Saving...' : 'Save Block'}</Text>
+                <Text style={styles.saveButtonText}>{isLoading ? 'Saving...' : 'Save Routine Block'}</Text>
               </TouchableOpacity>
             </View>
           </View>

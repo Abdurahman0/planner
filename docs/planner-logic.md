@@ -28,6 +28,7 @@ Effective priority:
 - has `plannedDate`
 - has `startTime`
 - has `endTime`
+- still represents completable work
 
 ### Unscheduled task
 
@@ -35,6 +36,14 @@ Effective priority:
 - no `startTime`
 - no `endTime`
 - can still be goal-linked or standalone
+
+### Routine block
+
+- uses the availability model
+- has `startTime`
+- has `endTime`
+- structures time in the day
+- is not completed like a task
 
 ## Planner behavior
 
@@ -65,9 +74,11 @@ Planner handoff:
 
 - goal-linked task -> Goal detail
 - standalone task -> Planner route params with task id + date
+- routine block -> Planner route params with date + time
 - Planner switches to day view
 - scheduled task focus scrolls once near the task time block
 - unscheduled task focus scrolls once into the unscheduled section
+- routine block focus scrolls once near the target time
 - focused task gets a temporary subtle highlight
 - focus scroll is consumed once per `focusNonce` and does not trap later scrolling
 
@@ -76,6 +87,8 @@ Planner handoff:
 - central planning screen
 - scheduled tasks still render on the timeline
 - unscheduled tasks still render below the timeline
+- empty timeline tap opens a routine block modal by default
+- task circle/check actions complete tasks from Planner even when `goalId` is missing
 - scheduled task chips stay inside each timeline card
 - status / priority / recurrence chips wrap within the card when space is tight
 - overlapping scheduled tasks use a simple offset layout instead of direct overlap

@@ -14,6 +14,8 @@
 - Dashboard `Start Now` now routes goal tasks into Goal detail review/completion
 - auth session now persists across native app restarts unless logout or confirmed invalid session
 - Progress now includes lightweight visual charts and per-goal progress detail
+- Planner now defaults empty-slot taps to routine block creation instead of task creation
+- standalone tasks now complete cleanly from Planner without any goal dependency
 
 ## Current
 

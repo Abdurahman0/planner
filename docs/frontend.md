@@ -55,10 +55,14 @@
   - unscheduled tasks
   - recurring availability blocks
 - day view CTA: `Plan Day`
+- tapping an empty time slot opens the routine block modal by default
 - task recurrence and priority overrides live under `More options`
 - scheduled task chips stay inside the timeline card
 - priority / repeat / status chips wrap inside the card instead of floating outside
 - overlapping scheduled tasks still use the existing simple offset layout
+- Planner tasks now have separate interactions:
+  - card press edits the task
+  - circle/check press completes the task
 
 ### Progress
 
@@ -90,6 +94,7 @@ Tasks now support priority behavior in the mobile UI.
 - standalone tasks default to medium unless changed
 - task cards show priority pills
 - scheduled Planner cards visually highlight high priority
+- standalone tasks are completable from Planner and notifications without any goal dependency
 - Dashboard uses a `getNextAction(tasks)` rule:
   - nearest upcoming scheduled task after current time
   - same-time tie break: higher priority, then `createdAt`
@@ -97,6 +102,7 @@ Tasks now support priority behavior in the mobile UI.
 - `Start Now` behavior:
   - goal-linked task -> Goal detail
   - standalone task -> Planner with focus params
+  - routine block -> Planner with time focus and `View Plan`
 - Planner day view consumes focus params and:
   - opens the correct day
   - scrolls once near the scheduled block if the task has time
@@ -139,6 +145,13 @@ Use:
 - body tap opens Planner
 - circle tap targets the exact row
 - backend still confirms completion
+
+## Task vs routine block
+
+- tasks are for completion and progress
+- routine blocks are for planning time only
+- routine blocks do not show done actions
+- goal pages only show goal-linked tasks, never standalone tasks
 
 ## Auth session persistence
 

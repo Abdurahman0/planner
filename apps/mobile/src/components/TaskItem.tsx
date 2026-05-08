@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { GestureResponderEvent, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Task, TaskSource, TaskStatus } from '@packages/shared';
 import { CheckCircle2, Circle, AlertCircle, Clock, Repeat2 } from 'lucide-react-native';
 import { getPriorityColor, getPriorityLabel, getTaskPriority, getTaskRecurrenceLabel } from '../lib/planner';
@@ -7,10 +7,11 @@ import { getPriorityColor, getPriorityLabel, getTaskPriority, getTaskRecurrenceL
 interface TaskItemProps {
   task: Task;
   onToggle?: () => void;
+  onPress?: () => void;
   highlighted?: boolean;
 }
 
-export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, highlighted = false }) => {
+export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, onPress, highlighted = false }) => {
   const priority = getTaskPriority(task);
   const priorityColor = getPriorityColor(priority);
   const timeLabel = task.startTime && task.endTime
@@ -37,11 +38,20 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onToggle, highlighted 
         task.status === TaskStatus.DONE && styles.completed,
         highlighted && styles.highlighted,
       ]}
-      onPress={onToggle}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.88 : 1}
     >
-      <View style={styles.iconContainer}>
+      <TouchableOpacity
+        style={styles.iconButton}
+        onPress={(event: GestureResponderEvent) => {
+          event.stopPropagation();
+          onToggle?.();
+        }}
+        disabled={!onToggle}
+        activeOpacity={0.82}
+      >
         {getIcon()}
-      </View>
+      </TouchableOpacity>
       <View style={styles.content}>
         <Text style={[styles.title, task.status === TaskStatus.DONE && styles.titleCompleted]}>
           {task.title}
@@ -91,6 +101,10 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginRight: 12,
+  },
+  iconButton: {
+    marginRight: 12,
+    alignSelf: 'flex-start',
   },
   content: {
     flex: 1,

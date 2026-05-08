@@ -138,6 +138,12 @@ export function getAvailabilityForDate(availability: AvailabilitySlot[], date: D
     .sort((left, right) => parseTimeToMinutes(left.startTime) - parseTimeToMinutes(right.startTime));
 }
 
+export function getNextPlanBlockForTime(availability: AvailabilitySlot[], date: Date, now: Date) {
+  const currentMinutes = getCurrentDayMinutes(now);
+
+  return getAvailabilityForDate(availability, date).find((slot) => parseTimeToMinutes(slot.startTime) > currentMinutes);
+}
+
 export function getTaskRecurrenceLabel(task: Task) {
   return getRecurrenceLabel(task.recurrenceType);
 }

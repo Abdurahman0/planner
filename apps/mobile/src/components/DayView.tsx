@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { AvailabilitySlot, Task } from '@packages/shared';
-import { Plus, Repeat2 } from 'lucide-react-native';
+import { GestureResponderEvent, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AvailabilitySlot, Task, TaskStatus } from '@packages/shared';
+import { CheckCircle2, Circle, Plus, Repeat2 } from 'lucide-react-native';
 import { TaskItem } from './TaskItem';
 import {
   getAvailabilityColor,
@@ -30,9 +30,10 @@ interface DayViewProps {
   tasks: Task[];
   availability?: AvailabilitySlot[];
   focusedTaskId?: string;
+  focusedTime?: string;
   focusRequestKey?: string;
-  onAddTaskAtTime?: (startTime?: string) => void;
   onEditTask?: (task: Task) => void;
+  onToggleTaskComplete?: (task: Task) => void;
   onAddScheduleBlock?: (startTime?: string) => void;
   onEditScheduleBlock?: (slot: AvailabilitySlot) => void;
 }
@@ -42,9 +43,10 @@ export const DayView: React.FC<DayViewProps> = ({
   tasks,
   availability = [],
   focusedTaskId,
+  focusedTime,
   focusRequestKey,
-  onAddTaskAtTime,
   onEditTask,
+  onToggleTaskComplete,
   onAddScheduleBlock,
   onEditScheduleBlock,
 }) => {
@@ -89,7 +91,7 @@ export const DayView: React.FC<DayViewProps> = ({
   }, [defaultScrollHour, selectedDateKey]);
 
   useEffect(() => {
-    if (!focusedTaskId || !focusRequestKey) {
+    if (!focusRequestKey) {
       return;
     }
 
@@ -97,22 +99,39 @@ export const DayView: React.FC<DayViewProps> = ({
       return;
     }
 
-    const matchedTask = dayTasks.find((task) => matchesFocusedTask(task, focusedTaskId));
+    const matchedTask = focusedTaskId
+      ? dayTasks.find((task) => matchesFocusedTask(task, focusedTaskId))
+      : undefined;
 
-    if (!matchedTask) {
+    if (!matchedTask && !focusedTime) {
       return;
     }
 
-    const matchedKey = getTaskFocusKey(matchedTask);
     consumedFocusRequestKeyRef.current = focusRequestKey;
-    setHighlightedTaskKey(matchedKey);
+    const matchedKey = matchedTask ? getTaskFocusKey(matchedTask) : null;
+
+    if (matchedKey) {
+      setHighlightedTaskKey(matchedKey);
+    }
 
     const scrollToFocusedTask = () => {
-      if (matchedTask.startTime && matchedTask.endTime) {
+      if (matchedTask?.startTime && matchedTask.endTime) {
         scrollViewRef.current?.scrollTo({
           y: Math.max(0, getTimelineTopOffset(matchedTask.startTime) - 48),
           animated: true,
         });
+        return;
+      }
+
+      if (focusedTime) {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, getTimelineTopOffset(focusedTime) - 48),
+          animated: true,
+        });
+        return;
+      }
+
+      if (!matchedKey) {
         return;
       }
 
@@ -128,13 +147,19 @@ export const DayView: React.FC<DayViewProps> = ({
     };
 
     const scrollTimeout = setTimeout(scrollToFocusedTask, 120);
-    const clearTimeoutId = setTimeout(() => setHighlightedTaskKey((current) => current === matchedKey ? null : current), 2600);
+    const clearTimeoutId = setTimeout(() => {
+      if (!matchedKey) {
+        return;
+      }
+
+      setHighlightedTaskKey((current) => current === matchedKey ? null : current);
+    }, 2600);
 
     return () => {
       clearTimeout(scrollTimeout);
       clearTimeout(clearTimeoutId);
     };
-  }, [dayTasks, focusRequestKey, focusedTaskId]);
+  }, [dayTasks, focusRequestKey, focusedTaskId, focusedTime]);
 
   const handleUnscheduledTaskLayout = (task: Task, event: LayoutChangeEvent) => {
     unscheduledTaskYRef.current[getTaskFocusKey(task)] = event.nativeEvent.layout.y;
@@ -152,7 +177,7 @@ export const DayView: React.FC<DayViewProps> = ({
           <View>
             <Text style={styles.summaryTitle}>Daily Planner</Text>
             <Text style={styles.summarySubtitle}>
-              Use Plan Day for new work, or tap an open slot when you already know the time.
+              Use Plan Day for new work, or tap an open slot to place a routine block into your day.
             </Text>
           </View>
           <View style={styles.summaryStats}>
@@ -179,7 +204,7 @@ export const DayView: React.FC<DayViewProps> = ({
                     styles.hourRow,
                     pressed && styles.hourRowPressed,
                   ]}
-                  onPress={() => onAddTaskAtTime?.(label)}
+                  onPress={() => onAddScheduleBlock?.(label)}
                   onPressIn={() => setPressedHour(hour)}
                   onPressOut={() => setPressedHour(null)}
                 >
@@ -256,6 +281,7 @@ export const DayView: React.FC<DayViewProps> = ({
                   layout={scheduledTaskLayouts[getTaskFocusKey(task)]}
                   highlighted={highlightedTaskKey === getTaskFocusKey(task)}
                   onPress={() => onEditTask?.(task)}
+                  onToggleComplete={() => onToggleTaskComplete?.(task)}
                 />
               ))}
             </View>
@@ -283,7 +309,8 @@ export const DayView: React.FC<DayViewProps> = ({
                 <TaskItem
                   task={task}
                   highlighted={highlightedTaskKey === getTaskFocusKey(task)}
-                  onToggle={() => onEditTask?.(task)}
+                  onPress={() => onEditTask?.(task)}
+                  onToggle={() => onToggleTaskComplete?.(task)}
                 />
               </View>
             ))
@@ -490,13 +517,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   scheduledTaskTime: {
     color: '#8B8B8B',
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
+    flex: 1,
+  },
+  scheduledTaskActionButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0C0C0C',
+    borderWidth: 1,
+    borderColor: '#262626',
   },
   taskStatusPill: {
     borderRadius: 999,
@@ -595,11 +633,13 @@ function ScheduledTaskCard({
   task,
   layout,
   onPress,
+  onToggleComplete,
   highlighted = false,
 }: {
   task: Task;
   layout?: ScheduledTaskLayout;
   onPress: () => void;
+  onToggleComplete?: () => void;
   highlighted?: boolean;
 }) {
   const priority = getTaskPriority(task);
@@ -627,6 +667,21 @@ function ScheduledTaskCard({
         <Text style={styles.scheduledTaskTime}>
           {task.startTime} - {task.endTime}
         </Text>
+        <TouchableOpacity
+          style={styles.scheduledTaskActionButton}
+          onPress={(event: GestureResponderEvent) => {
+            event.stopPropagation();
+            onToggleComplete?.();
+          }}
+          disabled={!onToggleComplete}
+          activeOpacity={0.82}
+        >
+          {task.status === TaskStatus.DONE ? (
+            <CheckCircle2 size={16} color="#10B981" />
+          ) : (
+            <Circle size={16} color="#8A8A8A" />
+          )}
+        </TouchableOpacity>
       </View>
       <Text style={styles.scheduledTaskTitle} numberOfLines={1}>
         {task.title}

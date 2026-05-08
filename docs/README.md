@@ -28,6 +28,8 @@ AI Planner is now centered around one simpler flow:
 - goal-linked `Start Now` now routes into Goal detail review/completion
 - auth session persists across native app restarts unless logout or confirmed invalid token
 - Planner timeline chips stay inside scheduled task cards
+- empty Planner timeline taps now open routine block creation by default
+- standalone tasks complete from Planner without depending on a goal
 - Progress now includes lightweight charts and per-goal progress detail
 - scheduled reminders use priority-specific Android channels
 - daily unscheduled task notification remains one notification per user/day
