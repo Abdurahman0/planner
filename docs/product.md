@@ -43,7 +43,11 @@ Planner is the execution surface. Goals define direction. Dashboard tells the us
 
 ### Progress
 
-- simple stats only
+- simple visual progress only
+- weekly completion chart
+- priority breakdown
+- goal progress overview
+- per-goal progress detail
 - no planning controls
 - no duplicate CTA
 
@@ -149,6 +153,25 @@ Current routing behavior:
 - scheduled tasks scroll near their time block
 - unscheduled tasks scroll into the `Unscheduled Tasks` section
 - focused task receives a temporary subtle highlight
+
+## Session persistence
+
+- if the user did not log out and the token remains valid, reopening the native app should restore the session automatically
+- startup validates the stored token with `/users/me`
+- if the network is temporarily unavailable, the app keeps the stored session instead of forcing logout immediately
+- logout or confirmed `401` invalid session clears the stored session
+
+## Progress view
+
+- Progress is intentionally lightweight, not a full analytics dashboard
+- weekly completion uses the last 7 days of completed task activity
+- priority breakdown shows completed vs pending work by effective priority
+- goal progress detail shows:
+  - overall completion
+  - completed vs total tasks
+  - upcoming tasks
+  - missed/incomplete tasks
+- current analytics are client-side summaries built from already-fetched user-scoped goals/tasks
 
 ## Current limits
 

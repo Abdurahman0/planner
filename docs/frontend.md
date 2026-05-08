@@ -56,14 +56,19 @@
   - recurring availability blocks
 - day view CTA: `Plan Day`
 - task recurrence and priority overrides live under `More options`
+- scheduled task chips stay inside the timeline card
+- priority / repeat / status chips wrap inside the card instead of floating outside
+- overlapping scheduled tasks still use the existing simple offset layout
 
 ### Progress
 
 - purpose: read-only progress stats
-- simplified to small stat cards
-- removed:
-  - heavy chart stack
-  - duplicate planner CTA
+- contains:
+  - weekly completion chart
+  - priority breakdown
+  - goal progress overview
+  - per-goal progress detail page
+- analytics are intentionally simple and computed client-side from user-scoped goals/tasks
 
 ### Profile
 
@@ -135,6 +140,16 @@ Use:
 - circle tap targets the exact row
 - backend still confirms completion
 
+## Auth session persistence
+
+- JWT is stored in `SecureStore` on native
+- the app restores the stored token on startup
+- the app restores a saved user snapshot first, then validates the token with `/users/me`
+- logout clears both the token and the saved user snapshot
+- invalid session clears storage only after confirmed `401`
+- transient startup/network failure does not immediately log the user out
+- on a transient failure, the app can reopen the saved account shell and wait for fresh data when the connection returns
+
 ## Safe area / CTA
 
 - floating CTA remains edge-to-edge aware
@@ -146,6 +161,7 @@ Use:
 ## Security
 
 - no tokens or JWTs shown in UI
+- no tokens or JWTs logged
 - no debug panels in production UI
 - planner logic is not delegated to AI
 - backend remains source of truth for task state and notification state

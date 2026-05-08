@@ -47,7 +47,14 @@ import {
   NOTIFICATION_PERMISSION_MESSAGE,
   registerForPushNotificationsAsync,
 } from '../lib/pushNotifications';
-import { clearStoredToken, getStoredToken, storeToken } from '../lib/tokenStorage';
+import {
+  clearStoredToken,
+  clearStoredUser,
+  getStoredToken,
+  getStoredUser,
+  storeToken,
+  storeUser,
+} from '../lib/tokenStorage';
 
 interface AppState {
   token: string | null;
@@ -58,9 +65,11 @@ interface AppState {
   notificationSummary: NotificationSummary | null;
   availability: AvailabilitySlot[];
   notificationPermissionNotice: string | null;
+  authNotice: string | null;
   isLoading: boolean;
   isInitialized: boolean;
   clearNotificationPermissionNotice: () => void;
+  clearAuthNotice: () => void;
   initializeAuth: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
@@ -92,11 +101,16 @@ export const useStore = create<AppState>((set, get) => ({
   notificationSummary: null,
   availability: [],
   notificationPermissionNotice: null,
+  authNotice: null,
   isLoading: false,
   isInitialized: false,
 
   clearNotificationPermissionNotice: () => {
     set({ notificationPermissionNotice: null });
+  },
+
+  clearAuthNotice: () => {
+    set({ authNotice: null });
   },
 
   initializeAuth: async () => {
@@ -107,7 +121,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const token = await getStoredToken();
+      const [token, storedUser] = await Promise.all([getStoredToken(), getStoredUser()]);
 
       if (!token) {
         set({
@@ -119,28 +133,50 @@ export const useStore = create<AppState>((set, get) => ({
           notificationSummary: null,
           availability: [],
           notificationPermissionNotice: null,
+          authNotice: null,
           isInitialized: true,
           isLoading: false,
         });
         return;
       }
 
+      if (storedUser) {
+        set({ token, user: storedUser, authNotice: null });
+      }
+
       const user = await fetchCurrentUser(token);
-      set({ token, user });
+      await storeUser(user);
+      set({ token, user, authNotice: null });
       await hydrateAppData(token, set);
       await syncPushRegistration(token, set);
       set({ isInitialized: true, isLoading: false });
     } catch (error) {
-      await clearStoredToken();
+      if (error instanceof UnauthorizedError) {
+        await Promise.all([clearStoredToken(), clearStoredUser()]);
+        set({
+          token: null,
+          user: null,
+          goals: [],
+          tasks: [],
+          notifications: [],
+          notificationSummary: null,
+          availability: [],
+          notificationPermissionNotice: null,
+          authNotice: null,
+          isInitialized: true,
+          isLoading: false,
+        });
+        return;
+      }
+
+      const [token, storedUser] = await Promise.all([getStoredToken(), getStoredUser()]);
+
       set({
-        token: null,
-        user: null,
-        goals: [],
-        tasks: [],
-        notifications: [],
-        notificationSummary: null,
-        availability: [],
-        notificationPermissionNotice: null,
+        token,
+        user: storedUser,
+        authNotice: token && storedUser
+          ? 'Using your saved session. Fresh data will load when the connection returns.'
+          : null,
         isInitialized: true,
         isLoading: false,
       });
@@ -152,10 +188,11 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const response = await loginRequest(email.trim().toLowerCase(), password);
-      await storeToken(response.accessToken);
+      await Promise.all([storeToken(response.accessToken), storeUser(response.user)]);
       set({
         token: response.accessToken,
         user: response.user,
+        authNotice: null,
       });
       await hydrateAppData(response.accessToken, set);
       await syncPushRegistration(response.accessToken, set);
@@ -171,10 +208,11 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const response = await registerRequest(email.trim().toLowerCase(), password);
-      await storeToken(response.accessToken);
+      await Promise.all([storeToken(response.accessToken), storeUser(response.user)]);
       set({
         token: response.accessToken,
         user: response.user,
+        authNotice: null,
       });
       await hydrateAppData(response.accessToken, set);
       await syncPushRegistration(response.accessToken, set);
@@ -186,7 +224,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   logout: async () => {
-    await clearStoredToken();
+    await Promise.all([clearStoredToken(), clearStoredUser()]);
     set({
       token: null,
       user: null,
@@ -196,6 +234,7 @@ export const useStore = create<AppState>((set, get) => ({
       notificationSummary: null,
       availability: [],
       notificationPermissionNotice: null,
+      authNotice: null,
       isLoading: false,
       isInitialized: true,
     });
@@ -206,7 +245,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const goals = await fetchGoals(token);
-      set({ goals });
+      set({ goals, authNotice: null });
     } catch (error) {
       await handleApiError(error, set);
       throw normalizeError(error);
@@ -220,6 +259,7 @@ export const useStore = create<AppState>((set, get) => ({
       const goal = await fetchGoal(token, goalId);
       set((state) => ({
         goals: upsertById(state.goals, goal),
+        authNotice: null,
       }));
       return goal;
     } catch (error) {
@@ -253,6 +293,7 @@ export const useStore = create<AppState>((set, get) => ({
         tasks: goalId
           ? mergeTasksForGoal(state.tasks, goalId, fetchedTasks)
           : fetchedTasks,
+        authNotice: null,
       }));
 
       return fetchedTasks;
@@ -317,7 +358,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const availability = await fetchAvailabilityRequest(token);
-      set({ availability });
+      set({ availability, authNotice: null });
       return availability;
     } catch (error) {
       await handleApiError(error, set);
@@ -374,7 +415,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const notifications = await fetchNotificationsRequest(token);
-      set({ notifications });
+      set({ notifications, authNotice: null });
       return notifications;
     } catch (error) {
       await handleApiError(error, set);
@@ -387,7 +428,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const notificationSummary = await fetchNotificationSummaryRequest(token);
-      set({ notificationSummary });
+      set({ notificationSummary, authNotice: null });
       return notificationSummary;
     } catch (error) {
       await handleApiError(error, set);
@@ -476,13 +517,14 @@ async function hydrateAppData(
     fetchNotificationsRequest(token),
     fetchNotificationSummaryRequest(token),
   ]);
-    set({
-      goals,
-      tasks,
-      notifications,
-      notificationSummary,
-      availability,
-    });
+  set({
+    goals,
+    tasks,
+    notifications,
+    notificationSummary,
+    availability,
+    authNotice: null,
+  });
 }
 
 async function syncPushRegistration(
@@ -571,7 +613,7 @@ async function handleApiError(
   set: (partial: Partial<AppState>) => void,
 ) {
   if (error instanceof UnauthorizedError) {
-    await clearStoredToken();
+    await Promise.all([clearStoredToken(), clearStoredUser()]);
     set({
       token: null,
       user: null,
@@ -581,6 +623,7 @@ async function handleApiError(
       notificationSummary: null,
       availability: [],
       notificationPermissionNotice: null,
+      authNotice: null,
       isLoading: false,
       isInitialized: true,
     });

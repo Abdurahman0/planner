@@ -26,6 +26,9 @@ AI Planner is now centered around one simpler flow:
 - Dashboard no longer shows task lists or report sections
 - Dashboard `Start Now` now hands off task focus into Planner day view
 - goal-linked `Start Now` now routes into Goal detail review/completion
+- auth session persists across native app restarts unless logout or confirmed invalid token
+- Planner timeline chips stay inside scheduled task cards
+- Progress now includes lightweight charts and per-goal progress detail
 - scheduled reminders use priority-specific Android channels
 - daily unscheduled task notification remains one notification per user/day
 - daily-task ordering now uses priority first, then creation time

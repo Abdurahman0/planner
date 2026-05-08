@@ -76,6 +76,8 @@ Planner handoff:
 - central planning screen
 - scheduled tasks still render on the timeline
 - unscheduled tasks still render below the timeline
+- scheduled task chips stay inside each timeline card
+- status / priority / recurrence chips wrap within the card when space is tight
 - overlapping scheduled tasks use a simple offset layout instead of direct overlap
 - recurring tasks and recurring blocks expand into the day view
 
@@ -148,3 +150,10 @@ Not implemented:
 - full-screen alarms
 - guaranteed wake-from-killed-state alarm behavior
 - true non-dismissible ongoing alarm UX
+
+## Progress analytics
+
+- Progress uses simple client-side calculations from already fetched user-scoped goals and tasks
+- weekly completion is based on completed tasks in the last 7 days
+- priority breakdown is based on effective priority and current task status
+- goal progress detail is derived from the goal-linked task set

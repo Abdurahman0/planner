@@ -34,8 +34,11 @@
 - Goals manages goals, it does not become a second planner
 - Goal detail can review and complete goal-owned tasks, but does not become a planner
 - Progress is read-only stats
+- Progress analytics should stay simple, readable, and user-scoped
 - Profile is account/settings only
 - do not ship debug panels or raw notification feeds
+- planner timeline chips must stay inside cards and wrap cleanly on small task blocks
+- auth session persistence must clear only on explicit logout or confirmed invalid session
 
 ## Notifications
 
@@ -48,6 +51,7 @@
 - JWT on user-owned routes
 - no client-controlled `userId`
 - no JWT/push token display in UI
+- no JWT storage outside approved session storage (`SecureStore` on native)
 - no secrets in frontend
 - no sensitive notification payloads
 

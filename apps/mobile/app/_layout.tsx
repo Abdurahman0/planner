@@ -33,6 +33,8 @@ function AppShell() {
   useAppBootstrap();
   const notificationPermissionNotice = useStore((state) => state.notificationPermissionNotice);
   const clearNotificationPermissionNotice = useStore((state) => state.clearNotificationPermissionNotice);
+  const authNotice = useStore((state) => state.authNotice);
+  const clearAuthNotice = useStore((state) => state.clearAuthNotice);
   useNotificationRouting();
   useNativeDailyTaskNotifications();
   const insets = useSafeAreaInsets();
@@ -51,6 +53,15 @@ function AppShell() {
               <Text style={styles.noticeTitle}>Notifications are off</Text>
               <Text style={styles.noticeBody}>{notificationPermissionNotice}</Text>
               <TouchableOpacity onPress={clearNotificationPermissionNotice}>
+                <Text style={styles.noticeAction}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {!notificationPermissionNotice && authNotice ? (
+            <View style={[styles.noticeBanner, { top: insets.top + 12 }]}>
+              <Text style={styles.noticeTitle}>Connection issue</Text>
+              <Text style={styles.noticeBody}>{authNotice}</Text>
+              <TouchableOpacity onPress={clearAuthNotice}>
                 <Text style={styles.noticeAction}>Dismiss</Text>
               </TouchableOpacity>
             </View>

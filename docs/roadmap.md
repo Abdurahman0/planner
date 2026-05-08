@@ -12,6 +12,8 @@
 - Dashboard now removes all competing lists and acts as a command screen
 - Dashboard `Start Now` now hands off task focus into Planner day view
 - Dashboard `Start Now` now routes goal tasks into Goal detail review/completion
+- auth session now persists across native app restarts unless logout or confirmed invalid session
+- Progress now includes lightweight visual charts and per-goal progress detail
 
 ## Current
 

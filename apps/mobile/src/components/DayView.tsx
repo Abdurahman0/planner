@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   scheduledTaskTime: {
     color: '#8B8B8B',
@@ -510,10 +510,10 @@ const styles = StyleSheet.create({
   },
   taskMetaRow: {
     flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
     gap: 6,
-    marginTop: 4,
+    marginTop: 6,
   },
   taskPriorityPill: {
     borderRadius: 999,
@@ -546,6 +546,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     marginTop: 4,
+    lineHeight: 16,
   },
   unscheduledSection: {
     backgroundColor: '#050505',
@@ -626,16 +627,16 @@ function ScheduledTaskCard({
         <Text style={styles.scheduledTaskTime}>
           {task.startTime} - {task.endTime}
         </Text>
-        <View style={[styles.taskStatusPill, { backgroundColor: `${getTaskStatusColor(task.status)}22` }]}>
-          <Text style={[styles.taskStatusText, { color: getTaskStatusColor(task.status) }]}>
-            {task.status.replace('_', ' ')}
-          </Text>
-        </View>
       </View>
       <Text style={styles.scheduledTaskTitle} numberOfLines={1}>
         {task.title}
       </Text>
       <View style={styles.taskMetaRow}>
+        <View style={[styles.taskStatusPill, { backgroundColor: `${getTaskStatusColor(task.status)}22` }]}>
+          <Text style={[styles.taskStatusText, { color: getTaskStatusColor(task.status) }]}>
+            {task.status.replace('_', ' ')}
+          </Text>
+        </View>
         <View style={[styles.taskPriorityPill, { backgroundColor: `${priorityColor}22`, borderColor: `${priorityColor}55` }]}>
           <Text style={[styles.taskPriorityText, { color: priorityColor }]}>{getPriorityLabel(priority)}</Text>
         </View>
@@ -688,7 +689,7 @@ function buildScheduledTaskLayouts(tasks: Task[]) {
 
     layouts[getTaskFocusKey(task)] = {
       top: getTimelineTopOffset(task.startTime) + 2,
-      height: Math.max(54, getTimelineHeight(task.startTime, task.endTime) - 4),
+      height: Math.max(76, getTimelineHeight(task.startTime, task.endTime) - 4),
       overlapOffset,
     };
   }
