@@ -1,7 +1,7 @@
-# Aura AI Planner - Architecture Documentation
+# AI Planner - Architecture Documentation
 
 ## Overview
-Aura is a production-oriented mobile-first AI Planner application. It distinguishes itself from generic todo apps by using AI specifically for structured goal planning and replanning, while the application logic handles progress tracking and deadline projections.
+AI Planner is a production-oriented mobile-first AI Planner application. It distinguishes itself from generic todo apps by using AI specifically for structured goal planning and replanning, while the application logic handles progress tracking and deadline projections.
 
 ## Project Structure (Monorepo)
 - `apps/mobile`: React Native (Expo) application.
